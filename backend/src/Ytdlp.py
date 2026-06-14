@@ -1,5 +1,6 @@
 import asyncio
 import math
+from rich import print as rprint
 import re
 import shutil
 from enum import Enum
@@ -232,6 +233,8 @@ class Ytdlp:
                 )
 
                 await SioEmitter.status_update(vp)
+
+                rprint("downloaded video data print", self.video.model_dump())
 
                 await SioEmitter.message(self.video.model_dump())
 

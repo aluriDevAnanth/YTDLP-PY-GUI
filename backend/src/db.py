@@ -60,7 +60,7 @@ class FileDB(SQLModel, table=True):
 
 
 # Sync SQLAlchemy database engine
-DATABASE_URL = "sqlite:///./data/data.db"
+DATABASE_URL = "sqlite:///./data/data.sqlite"
 engine = create_engine(
     DATABASE_URL,
     # echo=True

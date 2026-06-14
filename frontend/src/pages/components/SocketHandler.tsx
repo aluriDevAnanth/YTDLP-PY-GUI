@@ -20,7 +20,6 @@ export default function SocketHandler({ toastRef }: Props) {
     socket.on("message", (data) => {
       const ddata = VideoS.safeParse(data);
       if (ddata.success) {
-        console.log(ddata.data.id);
         upsertVideo(ddata.data);
       }
     });

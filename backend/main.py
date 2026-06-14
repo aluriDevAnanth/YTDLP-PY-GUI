@@ -16,7 +16,6 @@ from src.SioEmitter import SioEmitter
 from src.sockets import client_set, sio
 from src.video_route import video_router
 
-from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession
 
 DOWNLOAD_DIR = Path("./downloads").resolve()
@@ -29,14 +28,14 @@ sio.attach(app)
 async def connect(sid, environ, auth):
     print(f"Client Connected: {sid}")
     client_set.add(sid)
-    await SioEmitter.notify(
+    """ await SioEmitter.notify(
         Notify(
             severity="success",
             summary="Success",
             detail="Connected to SIO",
             extraData={},
         )
-    )
+    ) """
 
 
 @sio.event

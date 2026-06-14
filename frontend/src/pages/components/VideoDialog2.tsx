@@ -23,8 +23,10 @@ export default function VideoDialog({
   rowData: VideoT;
 }) {
   const upsertVideo = useVideoStore((state) => state.upsertVideo);
+
   function markAsWatched(): void {
     const data = rowData;
+    if (data.watched == true) return;
     data.watched = true;
 
     const config = {

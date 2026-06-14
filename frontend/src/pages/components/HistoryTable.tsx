@@ -4,7 +4,7 @@ import { type VideoT } from "src/schema";
 import { Tag } from "primereact/tag";
 import { Tooltip } from "primereact/tooltip";
 import TableRowOptionMenu from "./TableRowOptionMenu";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import useVideoStore from "src/context/videoStore";
 import VideoDialog from "./VideoDialog2";
@@ -53,8 +53,18 @@ export default function HistoryTable() {
   const [selectedVideo, setSelectedVideo] = useState<VideoT>();
   const [loading, setLoading] = useState(true);
 
+  const videoList = useMemo(() => {
+    return Object.values(videos).filter(Boolean);
+  }, [videos]);
+
   function booleanTemplate(rowData: VideoT, field: keyof VideoT) {
-    const value = rowData[field];
+    let value =
+      field == "downloadStatus"
+        ? rowData[field] == "completed"
+        : rowData[field];
+
+    console.log(`booleanTemplate ${field} value`, value);
+
     return (
       <Tag
         pt={{ value: { style: { lineHeight: "1" } } }}
@@ -93,9 +103,13 @@ export default function HistoryTable() {
           `${import.meta.env.VITE_BASE_URL}/videos`,
           {
             headers: { "Content-Type": "application/json" },
-          }
+          },
         );
-        useVideoStore.setState({ videos: response.data });
+        useVideoStore.setState({
+          videos: Object.fromEntries(
+            (response.data as VideoT[]).map((v: VideoT) => [v.id, v]),
+          ),
+        });
       } catch (error) {
         console.error(error);
       } finally {
@@ -105,8 +119,6 @@ export default function HistoryTable() {
 
     fetchVideos();
   }, []);
-
-  const videosData = Object.values(videos).filter(Boolean);
 
   return (
     <div className="p-2 relative">
@@ -129,7 +141,7 @@ export default function HistoryTable() {
       )}
 
       <DataTable
-        value={videosData}
+        value={videoList}
         loading={loading}
         size="small"
         showGridlines
@@ -235,24 +247,29 @@ export default function HistoryTable() {
 
         <Column
           header="Tags"
-          body={(rowData) => (
-            <div className="flex gap-2 cursor-pointer select-none">
-              {booleanTemplate(rowData, "watched")}
-              {booleanTemplate(rowData, "downloaded")}
-            </div>
-          )}
+          field="watched"
+          body={(rowData) => {
+            return (
+              <div
+                className="flex gap-2 cursor-pointer select-none"
+                onMouseEnter={(e) => handleMouseEnter(e, rowData)}
+                onMouseLeave={handleMouseLeave}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  setSelectedVideo(rowData as VideoT);
+                  setVisible(true);
+                }}
+              >
+                {booleanTemplate(rowData, "watched")}
+                {booleanTemplate(rowData, "downloadStatus")}
+              </div>
+            );
+          }}
           pt={{
-            bodyCell: (q) => ({
-              onMouseEnter: (e) => handleMouseEnter(e, q?.state.editingRowData),
-              onMouseLeave: handleMouseLeave,
-              className: "cursor-pointer ",
-              onDoubleClick: (e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                setSelectedVideo(q?.state.editingRowData as VideoT);
-                setVisible(true);
-              },
-            }),
+            bodyCell: {
+              className: "cursor-pointer",
+            },
           }}
         />
       </DataTable>
