@@ -91,7 +91,7 @@ export default function DownloadForm() {
         reset();
       })
       .catch((error) => {
-        console.log(error);
+        console.error(error);
         toastMain.current?.show({
           severity: "error",
           summary: "Error",

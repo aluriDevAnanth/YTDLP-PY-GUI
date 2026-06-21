@@ -16,9 +16,8 @@ from src.SioEmitter import SioEmitter
 from src.sockets import client_set, sio
 from src.video_route import video_router
 
+from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession
-
-DOWNLOAD_DIR = Path("./downloads").resolve()
 
 app = web.Application()
 sio.attach(app)
@@ -28,14 +27,14 @@ sio.attach(app)
 async def connect(sid, environ, auth):
     print(f"Client Connected: {sid}")
     client_set.add(sid)
-    """ await SioEmitter.notify(
+    await SioEmitter.notify(
         Notify(
             severity="success",
             summary="Success",
             detail="Connected to SIO",
             extraData={},
         )
-    ) """
+    )
 
 
 @sio.event
@@ -50,7 +49,6 @@ async def index(req):
 
 VIDEO_EXTENSIONS = {".mp4", ".mkv", ".avi", ".mov", ".webm"}
 
-
 async def serve_file(request: web.Request):
     file_id = request.match_info.get("fileId")
     if not file_id:
@@ -59,6 +57,7 @@ async def serve_file(request: web.Request):
         )
 
     video_obj = None
+    file_path = None
 
     try:
         with get_session() as session:
@@ -87,9 +86,11 @@ async def serve_file(request: web.Request):
                     video_obj.downloaded = True
                     session.add(video_obj)
                     session.commit()
+                    # Deep-copy out data model before session terminates
+                    video_data = video_obj.model_dump() 
 
         if video_obj:
-            await SioEmitter.message(video_obj.model_dump())
+            await SioEmitter.message(video_data)
 
         return web.FileResponse(
             path=file_path,
@@ -99,7 +100,7 @@ async def serve_file(request: web.Request):
         )
 
     except Exception as e:
-        print("[serve_file]", e)
+        print("[serve_file] Exception caught:", e)
         return web.json_response({"error": str(e)}, status=500)
 
 

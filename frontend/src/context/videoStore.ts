@@ -20,18 +20,7 @@ const useVideoStore = create<VideoStore>()(
 
       removeVideo: (id: string) =>
         set((state) => {
-          const remainingEntries = Object.entries(state.videos).filter(
-            ([_, video]) => video && video.id !== id,
-          );
-
-          const remainingVideos = remainingEntries.reduce(
-            (acc, [_, video], index) => {
-              acc[index.toString()] = video;
-              return acc;
-            },
-            {} as Record<string, VideoT>,
-          );
-
+          const { [id]: _, ...remainingVideos } = state.videos;
           return { videos: remainingVideos };
         }),
 

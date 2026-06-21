@@ -6,7 +6,7 @@ import axios, { type AxiosRequestConfig } from "axios";
 import { type VideoT } from "src/schema";
 import fileDownload from "js-file-download";
 import useVideoStore from "src/context/videoStore";
-import VideoDialog from "./VideoDialog2";
+import VideoDialog from "./VideoDialog";
 import { Dialog } from "primereact/dialog";
 
 export default function TableRowOptionMenu(rowData: VideoT): ReactNode {

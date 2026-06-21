@@ -1,6 +1,5 @@
 import asyncio
 import math
-from rich import print as rprint
 import re
 import shutil
 from enum import Enum
@@ -24,10 +23,11 @@ from src.schemas import (
 ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DOWNLOADS_DIR = BASE_DIR / "downloads"
-THUMBS_DIR = DOWNLOADS_DIR / "thumbnails"
-SPRITE_DIR = DOWNLOADS_DIR / "sprite"
-VTT_DIR = DOWNLOADS_DIR / "vtt"
+DOWNLOAD_DIR = BASE_DIR / "downloads"
+VIDEO_DIR = DOWNLOAD_DIR / "videos"
+THUMB_DIR = DOWNLOAD_DIR / "thumbnails"
+SPRITE_DIR = DOWNLOAD_DIR / "sprite"
+VTT_DIR = DOWNLOAD_DIR / "vtt"
 
 
 class FilePathType(str, Enum):
@@ -50,11 +50,11 @@ class Ytdlp:
         Ytdlp._instances[video.id] = self
 
         self.thumb_vtt_config = ThumbnailVTTConfig(interval=1)
-        self.thumb_vtt_config.temp_dir = DOWNLOADS_DIR / "temp" / "thumbs"
+        self.thumb_vtt_config.temp_dir = DOWNLOAD_DIR / "temp" / "thumbs"
         self.thumb_vtt_config.vtt_output_dir = VTT_DIR
         self.thumb_vtt_config.sprite_output_dir = SPRITE_DIR
 
-        for path in [THUMBS_DIR, SPRITE_DIR, VTT_DIR, self.thumb_vtt_config.temp_dir]:
+        for path in [THUMB_DIR, SPRITE_DIR, VTT_DIR, self.thumb_vtt_config.temp_dir]:
             path.mkdir(parents=True, exist_ok=True)
 
     @classmethod
@@ -78,7 +78,7 @@ class Ytdlp:
     async def download_video(self):
         ydl_opts = {
             "outtmpl": str(
-                DOWNLOADS_DIR
+                VIDEO_DIR
                 / "%(height)sp_%(extractor_key)s___%(title).50s___%(id)s.%(ext)s"
             ),
             "format": "worst",
@@ -201,7 +201,7 @@ class Ytdlp:
 
                 original_thumb_path = Path(
                     d["info_dict"]["thumbnails"][-1]["filepath"])
-                final_thumb_path = THUMBS_DIR / original_thumb_path.name
+                final_thumb_path = THUMB_DIR / original_thumb_path.name
                 shutil.move(str(original_thumb_path), str(final_thumb_path))
 
                 self.video.thumbnailPathId = self.setFileGetID(
@@ -233,8 +233,6 @@ class Ytdlp:
                 )
 
                 await SioEmitter.status_update(vp)
-
-                rprint("downloaded video data print", self.video.model_dump())
 
                 await SioEmitter.message(self.video.model_dump())
 
@@ -317,11 +315,12 @@ class Ytdlp:
             vtt_path = VTT_DIR / f"{video_name}_thumbs.vtt"
             vtt_path.write_text("\n".join(vtt_lines), encoding="utf-8")
 
-            shutil.rmtree(thumbs_dir, ignore_errors=False)
+            
             return vtt_path
-
         except Exception as e:
             print(f"[thumbgen] ❌ Exception: {e}")
+        finally:
+            shutil.rmtree(thumbs_dir, ignore_errors=False)
 
     def setFileGetID(self, file_path: str) -> str:
         try:

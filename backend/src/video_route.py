@@ -78,7 +78,7 @@ async def update_video(req: web.Request):
             {"error": "Invalid JSON body"}, status=HTTPStatus.BAD_REQUEST
         )
 
-    update_data = Video(**payload).dict(exclude_unset=True)
+    update_data = Video(**payload).model_dump(exclude_unset=True)
     if not update_data:
         return web.json_response(
             {"error": "No valid fields to update"}, status=HTTPStatus.BAD_REQUEST
