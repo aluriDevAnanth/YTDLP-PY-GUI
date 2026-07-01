@@ -2,13 +2,19 @@ import "@vidstack/react/player/styles/default/theme.css";
 import "@vidstack/react/player/styles/default/layouts/audio.css";
 import "@vidstack/react/player/styles/default/layouts/video.css";
 
-import { MediaPlayer, MediaProvider, Poster } from "@vidstack/react";
+import {
+  MediaPlayer,
+  MediaPlayerInstance,
+  MediaProvider,
+  Poster,
+  useMediaStore,
+} from "@vidstack/react";
 import {
   DefaultVideoLayout,
   defaultLayoutIcons,
 } from "@vidstack/react/player/layouts/default";
 import { Dialog } from "primereact/dialog";
-import type { Dispatch, SetStateAction } from "react";
+import { useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 import type { VideoT } from "src/schema";
 import axios from "axios";
 import useVideoStore from "src/context/videoStore";
@@ -22,6 +28,7 @@ export default function VideoDialog({
   setVisible: Dispatch<SetStateAction<boolean>>;
   rowData: VideoT;
 }) {
+  const player = useRef<MediaPlayerInstance>(null);
   const upsertVideo = useVideoStore((state) => state.upsertVideo);
 
   function markAsWatched(): void {
@@ -49,6 +56,13 @@ export default function VideoDialog({
       });
   }
 
+  /* useEffect(() => {
+    const { paused } = player.current!.state;
+
+    // Subscribe for updates without triggering renders.
+    return player.current!.subscribe(({ currentTime }) => {});
+  }, []); */
+
   return (
     <Dialog
       position="top"
@@ -63,6 +77,7 @@ export default function VideoDialog({
     >
       <div className="w-full h-full aspect-video">
         <MediaPlayer
+          ref={player}
           src={{
             src: "http://localhost:8000/api/files/" + rowData.videoPathId,
             type: "video/mp4",
@@ -73,8 +88,35 @@ export default function VideoDialog({
           crossOrigin
           playsInline
           title={rowData.fullTitle}
-          poster={"http://localhost:8000/api/files/" + rowData.thumbnailPathId}
+          poster={
+            rowData.prevWatchTime
+              ? "http://localhost:8000/api/files/" + rowData.thumbnailPathId
+              : undefined
+          }
           onPlay={markAsWatched}
+          keyTarget="player"
+          keyShortcuts={{
+            togglePaused: "k Space",
+            toggleMuted: "m",
+            toggleFullscreen: "f",
+            togglePictureInPicture: "i",
+            toggleCaptions: "c",
+            seekBackward: ["j", "J", "ArrowLeft"],
+            seekForward: ["l", "L", "ArrowRight"],
+            volumeUp: "ArrowUp",
+            volumeDown: "ArrowDown",
+            speedUp: ">",
+            slowDown: "<",
+            fooBar: {
+              keys: ["q"],
+              onKeyUp({ event, player, remote }) {
+                console.log({ event, player, remote });
+              },
+              async onKeyDown({ event, player, remote }) {
+                await new Promise((resolve) => setTimeout(resolve, 500));
+              },
+            },
+          }}
         >
           <MediaProvider>
             <Poster className="vds-poster" />
