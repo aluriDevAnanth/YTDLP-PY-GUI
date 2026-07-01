@@ -6,18 +6,19 @@ import {
   MediaPlayer,
   MediaPlayerInstance,
   MediaProvider,
+  Menu,
   Poster,
-  useMediaStore,
 } from "@vidstack/react";
 import {
-  DefaultVideoLayout,
   defaultLayoutIcons,
+  DefaultVideoLayout,
 } from "@vidstack/react/player/layouts/default";
 import { Dialog } from "primereact/dialog";
-import { useEffect, useRef, type Dispatch, type SetStateAction } from "react";
+import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { VideoT } from "src/schema";
 import axios from "axios";
 import useVideoStore from "src/context/videoStore";
+import { Icon } from "@iconify/react";
 
 export default function VideoDialog({
   visible,
@@ -29,6 +30,8 @@ export default function VideoDialog({
   rowData: VideoT;
 }) {
   const player = useRef<MediaPlayerInstance>(null);
+  const [speedIndex, setSpeedIndex] = useState(1.5);
+
   const upsertVideo = useVideoStore((state) => state.upsertVideo);
 
   function markAsWatched(): void {
@@ -55,13 +58,6 @@ export default function VideoDialog({
         console.error(error);
       });
   }
-
-  /* useEffect(() => {
-    const { paused } = player.current!.state;
-
-    // Subscribe for updates without triggering renders.
-    return player.current!.subscribe(({ currentTime }) => {});
-  }, []); */
 
   return (
     <Dialog
@@ -105,15 +101,19 @@ export default function VideoDialog({
             seekForward: ["l", "L", "ArrowRight"],
             volumeUp: "ArrowUp",
             volumeDown: "ArrowDown",
-            speedUp: ">",
-            slowDown: "<",
-            fooBar: {
-              keys: ["q"],
-              onKeyUp({ event, player, remote }) {
-                console.log({ event, player, remote });
+            speedUp: "d",
+            slowDown: "a",
+            speedReset: {
+              keys: ["s"],
+              onKeyUp({ player }: { player: MediaPlayerInstance }) {
+                player.playbackRate = 1;
               },
-              async onKeyDown({ event, player, remote }) {
-                await new Promise((resolve) => setTimeout(resolve, 500));
+            },
+            speeddUp: {
+              keys: ["w"],
+              onKeyUp({ player }: { player: MediaPlayerInstance }) {
+                if (player.playbackRate == 1) player.playbackRate = speedIndex;
+                else player.playbackRate = 1;
               },
             },
           }}
@@ -123,11 +123,58 @@ export default function VideoDialog({
           </MediaProvider>
           <DefaultVideoLayout
             thumbnails={"http://localhost:8000/api/files/" + rowData.vttPathId}
-            icons={defaultLayoutIcons}
             download
-          ></DefaultVideoLayout>
+            icons={defaultLayoutIcons}
+            slots={{
+              beforeSettingsMenu: (
+                <BoostSpeedMenu speed={speedIndex} setSpeed={setSpeedIndex} />
+              ),
+            }}
+          />
         </MediaPlayer>
       </div>
     </Dialog>
+  );
+}
+
+const SPEEDS = [0.5, 0.75, 1.25, 1.5, 2, 3, 4];
+
+function BoostSpeedMenu({
+  speed,
+  setSpeed,
+}: {
+  speed: number;
+  setSpeed: (speed: number) => void;
+}) {
+  return (
+    <Menu.Root className="vds-menu">
+      <Menu.Button className="vds-menu-button vds-button !min-w-fit !p-0">
+        <span className="font-bold p-3">{speed} x</span>
+      </Menu.Button>
+      <Menu.Items
+        className="vds-menu-items !min-w-fit !min-h-fit"
+        placement="top"
+        offset={0}
+      >
+        <Menu.RadioGroup className="vds-radio-group" value={speed.toString()}>
+          {SPEEDS.map((s) => (
+            <Menu.Radio
+              key={s}
+              value={s.toString()}
+              className="vds-radio"
+              onSelect={() => setSpeed(s)}
+            >
+              <Icon
+                icon="mdi:check"
+                className="vds-icon"
+                width={20}
+                height={20}
+              />
+              <span>{s} x</span>
+            </Menu.Radio>
+          ))}
+        </Menu.RadioGroup>
+      </Menu.Items>
+    </Menu.Root>
   );
 }
