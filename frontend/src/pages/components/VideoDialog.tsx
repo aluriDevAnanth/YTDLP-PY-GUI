@@ -8,19 +8,81 @@ import {
   MediaProvider,
   Menu,
   Poster,
+  Tooltip,
+  useStore,
 } from "@vidstack/react";
 import {
   defaultLayoutIcons,
   DefaultVideoLayout,
 } from "@vidstack/react/player/layouts/default";
 import { Dialog } from "primereact/dialog";
-import { useRef, useState, type Dispatch, type SetStateAction } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import type { VideoT } from "src/schema";
 import axios from "axios";
 import useVideoStore from "src/context/videoStore";
 import { Icon } from "@iconify/react";
 
-export default function VideoDialog({
+const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
+
+function BoostSpeedMenu({
+  speed,
+  onSpeedChange,
+}: {
+  speed: number;
+  onSpeedChange: (speed: number) => void;
+}) {
+  return (
+    <Menu.Root className="vds-menu">
+      <Menu.Button className="vds-menu-button vds-button !min-w-fit !p-0">
+        <Tooltip.Root showDelay={0}>
+          <Tooltip.Trigger asChild>
+            <span className="font-bold p-3">{speed} X</span>
+          </Tooltip.Trigger>
+          <Tooltip.Content
+            className="vds-tooltip-content"
+            placement="top center"
+          >
+            Current Quick Boost Playback Rate
+          </Tooltip.Content>
+        </Tooltip.Root>
+      </Menu.Button>
+      <Menu.Items
+        className="vds-menu-items !min-w-fit !min-h-fit"
+        placement="top"
+        offset={0}
+      >
+        <Menu.RadioGroup className="vds-radio-group" value={speed.toString()}>
+          {SPEEDS.map((s) => (
+            <Menu.Radio
+              key={s}
+              value={s.toString()}
+              className="vds-radio"
+              onSelect={() => {
+                onSpeedChange(s);
+              }}
+            >
+              <Icon
+                icon="mdi:check"
+                className="vds-icon"
+                width={20}
+                height={20}
+              />
+              <span>{s}×</span>
+            </Menu.Radio>
+          ))}
+        </Menu.RadioGroup>
+      </Menu.Items>
+    </Menu.Root>
+  );
+}
+
+function VideoDialog({
   visible,
   setVisible,
   rowData,
@@ -30,7 +92,15 @@ export default function VideoDialog({
   rowData: VideoT;
 }) {
   const player = useRef<MediaPlayerInstance>(null);
+  let localData: VideoT = { ...rowData };
+  const notificationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
+  const { playbackRate } = useStore(MediaPlayerInstance, player);
   const [speedIndex, setSpeedIndex] = useState(1.5);
+  const [showSpeedChangeNotification, SetShowSpeedChangeNotification] =
+    useState(false);
 
   const upsertVideo = useVideoStore((state) => state.upsertVideo);
 
@@ -59,6 +129,77 @@ export default function VideoDialog({
       });
   }
 
+  const handleSpeedChange = (newSpeed: number) => {
+    setSpeedIndex(newSpeed);
+    if (player.current) {
+      player.current.playbackRate = newSpeed;
+    }
+  };
+
+  useEffect(() => {
+    if (playbackRate !== undefined) {
+      // Clear any existing timeout
+      if (notificationTimeoutRef.current) {
+        clearTimeout(notificationTimeoutRef.current);
+        notificationTimeoutRef.current = null;
+      }
+
+      SetShowSpeedChangeNotification(true);
+
+      notificationTimeoutRef.current = setTimeout(() => {
+        SetShowSpeedChangeNotification(false);
+        notificationTimeoutRef.current = null;
+      }, 1000);
+    }
+
+    return () => {
+      if (notificationTimeoutRef.current) {
+        clearTimeout(notificationTimeoutRef.current);
+        notificationTimeoutRef.current = null;
+      }
+    };
+  }, [playbackRate]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      console.log(rowData.id, rowData.fullTitle, player.current?.currentTime);
+      if (
+        localData.prevWatchTime == Math.floor(player.current?.currentTime || 0)
+      )
+        return;
+
+      const config = {
+        method: "put",
+        maxBodyLength: Infinity,
+        url: `http://localhost:8000/api/video/${rowData.id}`,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        data: {
+          ...rowData,
+          prevWatchTime: Math.floor(player.current?.currentTime || 0),
+        },
+      };
+
+      axios
+        .request(config)
+        .then((response) => {
+          localData = {
+            ...localData,
+            prevWatchTime: response.data.prevWatchTime,
+          };
+        })
+        .catch((error: unknown) => {
+          console.error(error);
+        });
+    }, 5000);
+
+    return () => {
+      clearInterval(interval);
+      upsertVideo(localData);
+    };
+  }, []);
+
   return (
     <Dialog
       position="top"
@@ -71,110 +212,120 @@ export default function VideoDialog({
       dismissableMask
       pt={{ content: { className: "p-1" } }}
     >
-      <div className="w-full h-full aspect-video">
-        <MediaPlayer
-          ref={player}
-          src={{
-            src: "http://localhost:8000/api/files/" + rowData.videoPathId,
-            type: "video/mp4",
-          }}
-          viewType="video"
-          streamType="on-demand"
-          logLevel="warn"
-          crossOrigin
-          playsInline
-          title={rowData.fullTitle}
-          poster={
-            rowData.prevWatchTime
-              ? "http://localhost:8000/api/files/" + rowData.thumbnailPathId
-              : undefined
-          }
-          onPlay={markAsWatched}
-          keyTarget="player"
-          keyShortcuts={{
-            togglePaused: "k Space",
-            toggleMuted: "m",
-            toggleFullscreen: "f",
-            togglePictureInPicture: "i",
-            toggleCaptions: "c",
-            seekBackward: ["j", "J", "ArrowLeft"],
-            seekForward: ["l", "L", "ArrowRight"],
-            volumeUp: "ArrowUp",
-            volumeDown: "ArrowDown",
-            speedUp: "d",
-            slowDown: "a",
-            speedReset: {
-              keys: ["s"],
-              onKeyUp({ player }: { player: MediaPlayerInstance }) {
+      {showSpeedChangeNotification && (
+        <div className="absolute top-12 left-1/2 transform -translate-x-1/2 z-40 bg-black/60 text-white text-xs px-2.5 py-1 rounded-full pointer-events-none tracking-wider font-medium animate-pulse">
+          🚀 {playbackRate}X SPEED
+        </div>
+      )}
+      <MediaPlayer
+        ref={player}
+        currentTime={rowData.prevWatchTime || 0}
+        src={{
+          src: "http://localhost:8000/api/files/" + rowData.videoPathId,
+          type: "video/mp4",
+        }}
+        viewType="video"
+        streamType="on-demand"
+        logLevel="warn"
+        crossOrigin
+        playsInline
+        title={rowData.fullTitle}
+        poster={
+          rowData.prevWatchTime == 0
+            ? "http://localhost:8000/api/files/" + rowData.thumbnailPathId
+            : undefined
+        }
+        onPlay={markAsWatched}
+        keyTarget="document"
+        keyShortcuts={{
+          togglePaused: "k Space",
+          toggleMuted: "m",
+          toggleFullscreen: "f",
+          togglePictureInPicture: "i",
+          toggleCaptions: "c",
+          seekBackward: ["j", "J", "ArrowLeft"],
+          seekForward: ["l", "L", "ArrowRight"],
+          volumeUp: "ArrowUp",
+          volumeDown: "ArrowDown",
+          speedUp: {
+            keys: ["d", "D"],
+            onKeyUp({ player }: { player: MediaPlayerInstance }) {
+              const currentSpeed = player.playbackRate;
+              const nextSpeed =
+                SPEEDS.find((s) => s > currentSpeed) ||
+                SPEEDS[SPEEDS.length - 1];
+              player.playbackRate = nextSpeed;
+            },
+          },
+          slowDown: {
+            keys: ["a", "A"],
+            onKeyUp({ player }: { player: MediaPlayerInstance }) {
+              const currentSpeed = player.playbackRate;
+              const prevSpeed =
+                [...SPEEDS].reverse().find((s) => s < currentSpeed) ||
+                SPEEDS[0];
+              player.playbackRate = prevSpeed;
+            },
+          },
+          speedReset: {
+            keys: ["s", "S"],
+            onKeyUp({ player }: { player: MediaPlayerInstance }) {
+              player.playbackRate = 1;
+            },
+          },
+          toggleSpeed: {
+            keys: ["w", "W"],
+            onKeyUp({ player }: { player: MediaPlayerInstance }) {
+              if (player.playbackRate != speedIndex) {
+                player.playbackRate = speedIndex;
+              } else if (player.playbackRate != 1) {
                 player.playbackRate = 1;
-              },
+              }
             },
-            speeddUp: {
-              keys: ["w"],
-              onKeyUp({ player }: { player: MediaPlayerInstance }) {
-                if (player.playbackRate == 1) player.playbackRate = speedIndex;
-                else player.playbackRate = 1;
-              },
-            },
+          },
+        }}
+      >
+        <MediaProvider>
+          <Poster className="vds-poster" />
+        </MediaProvider>
+        <DefaultVideoLayout
+          showTooltipDelay={300}
+          seekStep={5}
+          thumbnails={"http://localhost:8000/api/files/" + rowData.vttPathId}
+          download
+          icons={defaultLayoutIcons}
+          slots={{
+            beforeSettingsMenu: (
+              <>
+                <Tooltip.Root showDelay={0}>
+                  <Tooltip.Trigger asChild>
+                    <div
+                      data-pr-tooltip="No notifications"
+                      data-pr-position="right"
+                      className="vds-menu-button vds-button !min-w-fit !p-0"
+                    >
+                      <span className="font-bold p-3">{playbackRate || 1}</span>
+                    </div>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content
+                    className="vds-tooltip-content"
+                    placement="top center"
+                  >
+                    Current Playback Rate
+                  </Tooltip.Content>
+                </Tooltip.Root>
+
+                <BoostSpeedMenu
+                  speed={speedIndex}
+                  onSpeedChange={handleSpeedChange}
+                />
+              </>
+            ),
           }}
-        >
-          <MediaProvider>
-            <Poster className="vds-poster" />
-          </MediaProvider>
-          <DefaultVideoLayout
-            thumbnails={"http://localhost:8000/api/files/" + rowData.vttPathId}
-            download
-            icons={defaultLayoutIcons}
-            slots={{
-              beforeSettingsMenu: (
-                <BoostSpeedMenu speed={speedIndex} setSpeed={setSpeedIndex} />
-              ),
-            }}
-          />
-        </MediaPlayer>
-      </div>
+        />
+      </MediaPlayer>
     </Dialog>
   );
 }
 
-const SPEEDS = [0.5, 0.75, 1.25, 1.5, 2, 3, 4];
-
-function BoostSpeedMenu({
-  speed,
-  setSpeed,
-}: {
-  speed: number;
-  setSpeed: (speed: number) => void;
-}) {
-  return (
-    <Menu.Root className="vds-menu">
-      <Menu.Button className="vds-menu-button vds-button !min-w-fit !p-0">
-        <span className="font-bold p-3">{speed} x</span>
-      </Menu.Button>
-      <Menu.Items
-        className="vds-menu-items !min-w-fit !min-h-fit"
-        placement="top"
-        offset={0}
-      >
-        <Menu.RadioGroup className="vds-radio-group" value={speed.toString()}>
-          {SPEEDS.map((s) => (
-            <Menu.Radio
-              key={s}
-              value={s.toString()}
-              className="vds-radio"
-              onSelect={() => setSpeed(s)}
-            >
-              <Icon
-                icon="mdi:check"
-                className="vds-icon"
-                width={20}
-                height={20}
-              />
-              <span>{s} x</span>
-            </Menu.Radio>
-          ))}
-        </Menu.RadioGroup>
-      </Menu.Items>
-    </Menu.Root>
-  );
-}
+export default VideoDialog;
