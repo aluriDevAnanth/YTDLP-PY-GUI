@@ -1,24 +1,19 @@
 import asyncio
 import math
+import platform
 import re
 import shutil
 from enum import Enum
 from pathlib import Path
-from yt_dlp.utils import DownloadError
 
 import ffmpeg
 from PIL import Image
 from sqlmodel import select, update
-from yt_dlp import YoutubeDL
-
+from src.db import FileDB, VideoDB, get_session
+from src.schemas import DownloadStatus, ThumbnailVTTConfig, Video, VideoProgress
 from src.SioEmitter import SioEmitter
-from src.db import VideoDB, FileDB,   get_session
-from src.schemas import (
-    DownloadStatus,
-    ThumbnailVTTConfig,
-    Video,
-    VideoProgress,
-)
+from yt_dlp import YoutubeDL
+from yt_dlp.utils import DownloadError
 
 ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
@@ -111,21 +106,19 @@ class Ytdlp:
                     None, lambda: ydl.download([self.video.url])
                 )
         except Exception as e:
-            print(e)
+            print(111, e)
 
     def _progress_wrapper(self, d):
         if self.canceled:
             file_path = d.get("filename")
             if file_path:
                 try:
-                    path = Path(file_path+".part")
+                    path = Path(file_path + ".part")
                     if path.exists():
                         path.unlink()
-                        print(
-                            f"[Ytdlp] Canceled and deleted video file: {file_path}")
+                        print(f"[Ytdlp] Canceled and deleted video file: {file_path}")
                 except Exception as e:
-                    print(
-                        f"[Ytdlp] Failed to delete video file {file_path}: {e}")
+                    print(f"[Ytdlp] Failed to delete video file {file_path}: {e}")
 
             try:
                 thumb_path = d["info_dict"]["thumbnails"][-1].get("filepath")
@@ -133,17 +126,14 @@ class Ytdlp:
                     thumb = Path(thumb_path)
                     if thumb.exists():
                         thumb.unlink()
-                        print(
-                            f"[Ytdlp] Canceled and deleted thumbnail: {thumb_path}")
+                        print(f"[Ytdlp] Canceled and deleted thumbnail: {thumb_path}")
             except Exception as e:
                 print(f"[Ytdlp] Failed to delete thumbnail: {e}")
 
             raise DownloadError("[Ytdlp] Canceled by user.")
 
         try:
-            asyncio.run_coroutine_threadsafe(
-                self.ytdlp_progress_hook(d), self.loop
-            )
+            asyncio.run_coroutine_threadsafe(self.ytdlp_progress_hook(d), self.loop)
         except Exception as e:
             print("[ERROR in hook emit]", e)
 
@@ -163,14 +153,15 @@ class Ytdlp:
                     self.video.videoId = d["info_dict"]["id"]
                     self.video.fullTitle = d["info_dict"]["fulltitle"]
                     self.video.durationString = d["info_dict"]["duration_string"]
-                    self.video.resolution = d["info_dict"].get(
-                        "resolution", "")
+                    self.video.resolution = d["info_dict"].get("resolution", "")
                     self.video.size = cleaned_totalSize
                     await SioEmitter.message(self.video.model_dump())
                     with get_session() as session:
-                        stmt = update(VideoDB).where(
-                            VideoDB.id == self.video.id  # type: ignore
-                        ).values(**self.video.model_dump())
+                        stmt = (
+                            update(VideoDB)
+                            .where(VideoDB.id == self.video.id)  # type: ignore
+                            .values(**self.video.model_dump())
+                        )
 
                         session.exec(stmt)  # type: ignore
                         session.commit()
@@ -199,8 +190,7 @@ class Ytdlp:
                     Path(d.get("filename")).as_posix(),
                 )
 
-                original_thumb_path = Path(
-                    d["info_dict"]["thumbnails"][-1]["filepath"])
+                original_thumb_path = Path(d["info_dict"]["thumbnails"][-1]["filepath"])
                 final_thumb_path = THUMB_DIR / original_thumb_path.name
                 shutil.move(str(original_thumb_path), str(final_thumb_path))
 
@@ -215,9 +205,11 @@ class Ytdlp:
                     )
 
                 with get_session() as session:
-                    stmt = update(VideoDB).where(
-                        VideoDB.id == self.video.id  # type: ignore
-                    ).values(**self.video.model_dump())
+                    stmt = (
+                        update(VideoDB)
+                        .where(VideoDB.id == self.video.id)  # type: ignore
+                        .values(**self.video.model_dump())
+                    )
 
                     session.exec(stmt)  # type: ignore
                     session.commit()
@@ -240,6 +232,7 @@ class Ytdlp:
             print("[ytdlp_progress_hook]", e)
 
     async def thumbgen(self, d: dict):
+        thumbs_dir = None
         try:
             filepath = d.get("filename")
             if not filepath or not Path(filepath).exists():
@@ -253,6 +246,9 @@ class Ytdlp:
 
             thumb_pattern = str(thumbs_dir / "thumb%04d.jpg")
 
+            binary_name = "ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg"
+            ffmpeg_path = Path("req") / binary_name
+
             try:
                 (
                     ffmpeg.input(str(filepath))
@@ -261,7 +257,7 @@ class Ytdlp:
                         vf=f"fps=1/{self.thumb_vtt_config.interval}",
                         loglevel="error",
                     )
-                    .run()
+                    .run(cmd=str(ffmpeg_path))
                 )
             except ffmpeg.Error as e:
                 print("[thumbgen] FFmpeg thumbnail generation failed:", e)
@@ -289,11 +285,9 @@ class Ytdlp:
                     sprite.paste(img, (x, y))
 
             sprite.save(sprite_path)
+            print(f"[thumbgen] ✅ Sprite saved: {sprite_path}")
 
-            self.video.vttSpritePathId = self.setFileGetID(
-                sprite_path.as_posix(),
-            )
-            sprite_url = self.video.vttSpritePathId
+            self.video.vttSpritePathId = self.setFileGetID(sprite_path.as_posix())
 
             def format_timestamp(total_seconds: int) -> str:
                 hrs = total_seconds // 3600
@@ -303,24 +297,36 @@ class Ytdlp:
 
             interval = self.thumb_vtt_config.interval
             vtt_lines = ["WEBVTT\n"]
+
+            sprite_url = self.video.vttSpritePathId
+
             for idx in range(len(thumbs)):
                 x = (idx % columns) * thumb_w
                 y = (idx // columns) * thumb_h
                 start_time = format_timestamp(idx * interval)
                 end_time = format_timestamp((idx + 1) * interval)
                 vtt_lines.append(f"{start_time} --> {end_time}")
-                vtt_lines.append(
-                    f"{sprite_url}#xywh={x},{y},{thumb_w},{thumb_h}\n")
+                vtt_lines.append(f"{sprite_url}#xywh={x},{y},{thumb_w},{thumb_h}\n")
 
             vtt_path = VTT_DIR / f"{video_name}_thumbs.vtt"
             vtt_path.write_text("\n".join(vtt_lines), encoding="utf-8")
+            print(f"[thumbgen] ✅ VTT saved: {vtt_path}")
 
-            
             return vtt_path
+
         except Exception as e:
             print(f"[thumbgen] ❌ Exception: {e}")
+            import traceback
+
+            traceback.print_exc()
+            return None
         finally:
-            shutil.rmtree(thumbs_dir, ignore_errors=False)
+            if thumbs_dir and thumbs_dir.exists():
+                try:
+                    shutil.rmtree(thumbs_dir)
+                    print(f"[thumbgen] 🧹 Cleaned up: {thumbs_dir}")
+                except Exception as e:
+                    print(f"[thumbgen] ⚠️ Failed to cleanup {thumbs_dir}: {e}")
 
     def setFileGetID(self, file_path: str) -> str:
         try:

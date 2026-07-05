@@ -11,5 +11,6 @@ wheels/
 
 data/
 downloads/
+/req
 
 uv.lock

@@ -12,6 +12,7 @@ dependencies = [
     "pillow>=11.3.0",
     "pydantic>=2.11.7",
     "python-socketio>=5.13.0",
+    "requests>=2.34.2",
     "sqlmodel>=0.0.24",
     "watchfiles>=1.1.0",
     "yt-dlp>=2025.7.21",

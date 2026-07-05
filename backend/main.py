@@ -1,23 +1,22 @@
-from src.db import VideoDB, get_session
-import os
 import asyncio
+import os
+import platform
+from contextlib import asynccontextmanager
 from http import HTTPStatus
 from pathlib import Path
 
 import aiohttp_cors
+import src.req
 from aiohttp import web
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
-from watchfiles import DefaultFilter, arun_process
-
-from src.db import FileDB, get_session, init_db
+from src.db import FileDB, VideoDB, get_session, init_db
 from src.DownloadStarter import download_starter
-from src.schemas import Notify
+from src.schemas import Notify, Startup
 from src.SioEmitter import SioEmitter
 from src.sockets import client_set, sio
 from src.video_route import video_router
-
-from contextlib import asynccontextmanager
-from sqlalchemy.ext.asyncio import AsyncSession
+from watchfiles import DefaultFilter, arun_process
 
 app = web.Application()
 sio.attach(app)
@@ -36,6 +35,23 @@ async def connect(sid, environ, auth):
         )
     )
 
+    if not src.req.is_ffmpeg_available(Path("req")):
+        await SioEmitter.startupp(
+            Startup(
+                message=f"📥 Downloading FFmpeg for {platform.system()}...",
+                typee="ongoing",
+            )
+        )
+    else:
+        exe_name = "ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg"
+        local_ffmpeg = Path("req") / exe_name
+        await SioEmitter.startupp(
+            Startup(
+                message=f"ℹ️ FFmpeg is already available locally at: {local_ffmpeg}",
+                typee="ongoing",
+            )
+        )
+
 
 @sio.event
 async def disconnect(sid):
@@ -48,6 +64,7 @@ async def index(req):
 
 
 VIDEO_EXTENSIONS = {".mp4", ".mkv", ".avi", ".mov", ".webm"}
+
 
 async def serve_file(request: web.Request):
     file_id = request.match_info.get("fileId")
@@ -87,16 +104,14 @@ async def serve_file(request: web.Request):
                     session.add(video_obj)
                     session.commit()
                     # Deep-copy out data model before session terminates
-                    video_data = video_obj.model_dump() 
+                    video_data = video_obj.model_dump()
 
         if video_obj:
             await SioEmitter.message(video_data)
 
         return web.FileResponse(
             path=file_path,
-            headers={
-                "Content-Disposition": f'attachment; filename="{file_path.name}"'
-            },
+            headers={"Content-Disposition": f'attachment; filename="{file_path.name}"'},
         )
 
     except Exception as e:
@@ -104,8 +119,7 @@ async def serve_file(request: web.Request):
         return web.json_response({"error": str(e)}, status=500)
 
 
-app.add_routes(
-    [web.get("/api/", index), web.get("/api/files/{fileId:.*}", serve_file)])
+app.add_routes([web.get("/api/", index), web.get("/api/files/{fileId:.*}", serve_file)])
 app.add_routes(video_router)
 
 cors = aiohttp_cors.setup(
@@ -132,7 +146,7 @@ for route in list(app.router.routes()):
 
 async def callback(changes):
     await asyncio.sleep(0.2)
-    os.system('cls' if os.name == 'nt' else 'clear')
+    os.system("cls" if os.name == "nt" else "clear")
     print("Changes detected:", changes)
 
 
@@ -158,6 +172,5 @@ def runn():
 
 if __name__ == "__main__":
     asyncio.run(
-        arun_process(".", target=runn, callback=callback,
-                     watch_filter=PyOnlyFilter())
+        arun_process(".", target=runn, callback=callback, watch_filter=PyOnlyFilter())
     )

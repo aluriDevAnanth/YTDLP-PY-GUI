@@ -56,6 +56,19 @@ class Notify(BaseModel):
     extraData: dict = {}
 
 
+class TriStatus(str, Enum):
+    SUCCESS = "success"
+    ERROR = "error"
+    ONGOING = "ongoing"
+
+
+class Startup(BaseModel):
+    sseType: str = "startupp"
+    dataID: str = "qqq"
+    message: str
+    typee: str = TriStatus.ONGOING
+
+
 class ThumbnailVTTConfig(BaseModel):
     temp_dir: Path = Field(default=Path("./downloads/temp/thumbs"))
     vtt_output_dir: Path = Field(default=Path("./downloads/vtt"))

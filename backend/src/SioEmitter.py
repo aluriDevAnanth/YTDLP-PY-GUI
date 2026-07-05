@@ -1,4 +1,4 @@
-from src.schemas import Notify, VideoProgress
+from src.schemas import Notify, Startup, VideoProgress
 from src.sockets import client_set, sio
 
 
@@ -15,3 +15,7 @@ class SioEmitter:
     @staticmethod
     async def notify(notification: Notify):
         await sio.emit("notify", notification.model_dump(), to=next(iter(client_set)))
+
+    @staticmethod
+    async def startupp(startup: Startup):
+        await sio.emit("startupp", startup.model_dump(), to=next(iter(client_set)))

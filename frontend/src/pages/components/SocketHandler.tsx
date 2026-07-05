@@ -1,11 +1,17 @@
 import { Toast } from "primereact/toast";
 import { useEffect } from "react";
+import useSSEStore, { type typeFields } from "src/context/SSEStore";
 import useVideoStore from "src/context/videoStore";
 import { type NotifyT, type VideoProgressT, VideoS } from "src/schema";
 import { socket } from "src/socket";
 
 type Props = {
   toastRef: React.RefObject<Toast | null>;
+};
+
+export type StartupSSE = typeFields & {
+  message: string;
+  typee: "success" | "error" | "ongoing";
 };
 
 export default function SocketHandler({ toastRef }: Props) {
@@ -42,6 +48,13 @@ export default function SocketHandler({ toastRef }: Props) {
         summary: data.summary ?? "Notification",
         detail: data.detail ?? JSON.stringify(data),
       });
+    });
+
+    socket.on("startupp", (data: StartupSSE) => {
+      console.log("startupp", data);
+
+      const upsertSSE = useSSEStore<StartupSSE>().getState().upsertSSE;
+      upsertSSE(data);
     });
 
     socket.on("disconnect", () => {
