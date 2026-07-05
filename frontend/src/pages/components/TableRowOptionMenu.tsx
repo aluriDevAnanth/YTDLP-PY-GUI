@@ -1,13 +1,14 @@
-import { useRef, useState, type ReactNode } from "react";
-import { Button } from "primereact/button";
-import { Toast } from "primereact/toast";
 import { Icon } from "@iconify/react/dist/iconify.js";
 import axios, { type AxiosRequestConfig } from "axios";
-import { type VideoT } from "src/schema";
 import fileDownload from "js-file-download";
-import useVideoStore from "src/context/videoStore";
-import VideoDialog from "./VideoDialog";
+import { Button } from "primereact/button";
 import { Dialog } from "primereact/dialog";
+import { Toast } from "primereact/toast";
+import { type ReactNode, useRef, useState } from "react";
+import ReactJson from "react-json-view";
+import useVideoStore from "src/context/videoStore";
+import { type VideoT } from "src/schema";
+import VideoDialog from "./VideoDialog";
 
 export default function TableRowOptionMenu(rowData: VideoT): ReactNode {
   const toast = useRef<Toast>(null);
@@ -60,11 +61,17 @@ export default function TableRowOptionMenu(rowData: VideoT): ReactNode {
         <Dialog
           header={`Info for video ${rowData.fullTitle}`}
           visible={info}
-          style={{ width: "50vw" }}
+          style={{ width: "80vw" }}
           onHide={() => setInfo(false)}
           dismissableMask
         >
-          <pre>{JSON.stringify(rowData, null, 2)}</pre>
+          {/* <pre>{JSON.stringify(rowData, null, 2)}</pre> */}
+          <ReactJson
+            src={rowData}
+            theme={"ocean"}
+            iconStyle="circle"
+            collapseStringsAfterLength={100}
+          />
         </Dialog>
       )}
 

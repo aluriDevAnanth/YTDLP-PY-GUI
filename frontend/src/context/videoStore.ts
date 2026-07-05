@@ -1,7 +1,7 @@
+import type { VideoProgressT, VideoT } from "src/schema";
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
-import type { VideoProgressT, VideoT } from "src/schema";
 
 const useVideoStore = create<VideoStore>()(
   devtools(
@@ -28,7 +28,7 @@ const useVideoStore = create<VideoStore>()(
         set((state) => ({
           videoProgress: {
             ...state.videoProgress,
-            [progress.videoId]: progress,
+            [progress.id]: progress,
           },
         })),
 

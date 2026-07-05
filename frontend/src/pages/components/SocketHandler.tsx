@@ -1,8 +1,8 @@
-import { useEffect } from "react";
 import { Toast } from "primereact/toast";
-import { socket } from "src/socket";
+import { useEffect } from "react";
 import useVideoStore from "src/context/videoStore";
-import { VideoS, type NotifyT, type VideoProgressT } from "src/schema";
+import { type NotifyT, type VideoProgressT, VideoS } from "src/schema";
+import { socket } from "src/socket";
 
 type Props = {
   toastRef: React.RefObject<Toast | null>;
@@ -25,6 +25,7 @@ export default function SocketHandler({ toastRef }: Props) {
     });
 
     socket.on("status_update", (data: VideoProgressT) => {
+      console.log("upsertVideoProgress", data);
       upsertVideoProgress(data);
     });
 

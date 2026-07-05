@@ -1,6 +1,6 @@
+import { Icon } from "@iconify/react";
 import { Button } from "primereact/button";
 import { useEffect, useState } from "react";
-import { Icon } from "@iconify/react";
 
 const primereact = {
   light: "lara-light-blue",
@@ -11,7 +11,7 @@ const ThemeSwitcher = () => {
   const [isDark, setIsDark] = useState(
     localStorage.getItem("YTDLP-X-GUI-THEME")
       ? localStorage.getItem("YTDLP-X-GUI-THEME") === "dark"
-      : true
+      : true,
   );
 
   const toggleTheme = () => {
@@ -22,7 +22,7 @@ const ThemeSwitcher = () => {
     document.documentElement.setAttribute("tw-data-theme", newTheme);
 
     const themeLink = document.getElementById(
-      "primereact-theme"
+      "primereact-theme",
     ) as HTMLLinkElement;
     if (themeLink) {
       themeLink.href = `/themes/${
@@ -43,7 +43,7 @@ const ThemeSwitcher = () => {
     document.head.appendChild(themeLink);
     document.documentElement.setAttribute(
       "tw-data-theme",
-      isDark ? "dark" : "light"
+      isDark ? "dark" : "light",
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

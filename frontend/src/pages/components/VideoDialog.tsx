@@ -1,7 +1,4 @@
-import "@vidstack/react/player/styles/default/theme.css";
-import "@vidstack/react/player/styles/default/layouts/audio.css";
-import "@vidstack/react/player/styles/default/layouts/video.css";
-
+import { Icon } from "@iconify/react";
 import {
   MediaPlayer,
   MediaPlayerInstance,
@@ -15,18 +12,20 @@ import {
   defaultLayoutIcons,
   DefaultVideoLayout,
 } from "@vidstack/react/player/layouts/default";
+import "@vidstack/react/player/styles/default/layouts/audio.css";
+import "@vidstack/react/player/styles/default/layouts/video.css";
+import "@vidstack/react/player/styles/default/theme.css";
+import axios from "axios";
 import { Dialog } from "primereact/dialog";
 import {
+  type Dispatch,
+  type SetStateAction,
   useEffect,
   useRef,
   useState,
-  type Dispatch,
-  type SetStateAction,
 } from "react";
-import type { VideoT } from "src/schema";
-import axios from "axios";
 import useVideoStore from "src/context/videoStore";
-import { Icon } from "@iconify/react";
+import type { VideoT } from "src/schema";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
 
@@ -92,7 +91,7 @@ function VideoDialog({
   rowData: VideoT;
 }) {
   const player = useRef<MediaPlayerInstance>(null);
-  let localData: VideoT = { ...rowData };
+  let localPrevWatchTime = rowData.prevWatchTime;
   const notificationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -105,7 +104,7 @@ function VideoDialog({
   const upsertVideo = useVideoStore((state) => state.upsertVideo);
 
   function markAsWatched(): void {
-    const data = rowData;
+    const data = { ...rowData };
     if (data.watched == true) return;
     data.watched = true;
 
@@ -163,9 +162,7 @@ function VideoDialog({
   useEffect(() => {
     const interval = setInterval(() => {
       console.log(rowData.id, rowData.fullTitle, player.current?.currentTime);
-      if (
-        localData.prevWatchTime == Math.floor(player.current?.currentTime || 0)
-      )
+      if (localPrevWatchTime == Math.floor(player.current?.currentTime || 0))
         return;
 
       const config = {
@@ -184,10 +181,7 @@ function VideoDialog({
       axios
         .request(config)
         .then((response) => {
-          localData = {
-            ...localData,
-            prevWatchTime: response.data.prevWatchTime,
-          };
+          localPrevWatchTime = response.data.prevWatchTime;
         })
         .catch((error: unknown) => {
           console.error(error);
@@ -196,7 +190,10 @@ function VideoDialog({
 
     return () => {
       clearInterval(interval);
-      upsertVideo(localData);
+      upsertVideo({
+        ...useVideoStore.getState().videos[rowData.id],
+        prevWatchTime: localPrevWatchTime,
+      });
     };
   }, []);
 

@@ -1,20 +1,20 @@
-import { useForm, Controller } from "react-hook-form";
-import {
-  DownloadFormS,
-  VideoS,
-  type DownloadFormT,
-  type VideoT,
-} from "../../schema";
-import { InputText } from "primereact/inputtext";
-import { Dropdown } from "primereact/dropdown";
-import { Button } from "primereact/button";
-import { FloatLabel } from "primereact/floatlabel";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { RadioButton } from "primereact/radiobutton";
 import axios from "axios";
-import useVideoStore from "src/context/videoStore";
+import { Button } from "primereact/button";
+import { Dropdown } from "primereact/dropdown";
+import { FloatLabel } from "primereact/floatlabel";
+import { InputText } from "primereact/inputtext";
+import { RadioButton } from "primereact/radiobutton";
 import { Toast } from "primereact/toast";
 import { useRef } from "react";
+import { Controller, useForm } from "react-hook-form";
+import useVideoStore from "src/context/videoStore";
+import {
+  DownloadFormS,
+  type DownloadFormT,
+  VideoS,
+  type VideoT,
+} from "../../schema";
 
 const formatOptions = [
   { label: "Best", value: "best" },

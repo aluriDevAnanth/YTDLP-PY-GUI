@@ -1,8 +1,8 @@
+import { Toast } from "primereact/toast";
+import { useRef } from "react";
 import Header from "./pages/components/Header";
 import SocketHandler from "./pages/components/SocketHandler";
 import Home from "./pages/Home";
-import { Toast } from "primereact/toast";
-import { useRef } from "react";
 
 function App() {
   const toastMain = useRef<Toast>(null);

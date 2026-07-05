@@ -1,14 +1,14 @@
-import { Menubar } from "primereact/menubar";
-import ThemeSwitcher from "./ThemeSwitcher";
-import { Dialog } from "primereact/dialog";
-import { useState } from "react";
-import { Button } from "primereact/button";
 import { Icon } from "@iconify/react/dist/iconify.js";
-import DownloadForm from "./DownloadForm";
+import { Button } from "primereact/button";
+import { Dialog } from "primereact/dialog";
 import { InputText } from "primereact/inputtext";
+import { Menubar } from "primereact/menubar";
+import { useState } from "react";
 import useVideoStore from "src/context/videoStore";
+import DownloadForm from "./DownloadForm";
+import ThemeSwitcher from "./ThemeSwitcher";
 
-const Header = () => {
+function Header() {
   const [visible, setVisible] = useState(false);
   const globalFilter = useVideoStore((state) => state.globalFilter);
   return (
@@ -77,6 +77,6 @@ const Header = () => {
       />
     </>
   );
-};
+}
 
 export default Header;

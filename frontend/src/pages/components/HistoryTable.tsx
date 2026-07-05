@@ -1,87 +1,75 @@
+import { Icon } from "@iconify/react/dist/iconify.js";
+import axios from "axios";
+import { FilterMatchMode } from "primereact/api";
+import { Button } from "primereact/button";
 import { Column } from "primereact/column";
 import { DataTable } from "primereact/datatable";
+import { InputText } from "primereact/inputtext";
 import { Tag } from "primereact/tag";
 import { Tooltip } from "primereact/tooltip";
-import TableRowOptionMenu from "./TableRowOptionMenu";
 import {
-  useEffect,
-  useState,
-  useCallback,
   createContext,
-  useContext,
   type JSX,
   memo,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
 } from "react";
-import axios from "axios";
 import useVideoStore from "src/context/videoStore";
-import VideoDialog from "./VideoDialog";
-import { Icon } from "@iconify/react/dist/iconify.js";
-import { Button } from "primereact/button";
-import ProgressBarOrThumbnail from "./ProgressBarOrThumbnail";
-import { FilterMatchMode } from "primereact/api";
-import { InputText } from "primereact/inputtext";
-
 import { type VideoT } from "src/schema";
+import ProgressBarOrID from "./ProgressBarOrID";
+import TableRowOptionMenu from "./TableRowOptionMenu";
+import VideoDialog from "./VideoDialog";
 
-interface HoverState {
-  url: string;
-  x: number;
-  y: number;
-}
+const HoverContext = createContext<{
+  setHoveredThumbnail: (
+    state: {
+      url: string;
+      x: number;
+      y: number;
+    } | null,
+  ) => void;
+} | null>(null);
 
-interface HoverContextType {
-  setHoveredThumbnail: (state: HoverState | null) => void;
-}
+const ThumbnailPreview = memo(
+  ({
+    hoveredThumbnail,
+  }: {
+    hoveredThumbnail: {
+      url: string;
+      x: number;
+      y: number;
+    };
+  }) => {
+    const windowWidth = window.innerWidth;
+    const previewWidth = 0.4 * windowWidth;
+    const { url, x } = hoveredThumbnail;
 
-const HoverContext = createContext<HoverContextType | null>(null);
+    const adjustedX =
+      x + previewWidth > windowWidth
+        ? windowWidth - previewWidth - windowWidth / 2
+        : x;
 
-interface ThumbnailPreviewProps {
-  hoveredThumbnail: HoverState;
-}
-
-const ThumbnailPreview = memo(({ hoveredThumbnail }: ThumbnailPreviewProps) => {
-  const windowWidth = window.innerWidth;
-  const previewWidth = 0.4 * windowWidth;
-  const { url, x } = hoveredThumbnail;
-
-  const adjustedX =
-    x + previewWidth > windowWidth
-      ? windowWidth - previewWidth - windowWidth / 2
-      : x;
-
-  return (
-    <div
-      className="z-50 fixed pointer-events-none shadow-xl rounded-md top-1/10"
-      style={{
-        right: `${adjustedX}px`,
-        width: "40vw",
-        height: "auto",
-        padding: "4px",
-      }}
-    >
-      <img
-        src={url}
-        alt="Video thumbnail"
-        className="w-full h-auto object-contain rounded"
-      />
-    </div>
-  );
-});
-ThumbnailPreview.displayName = "ThumbnailPreview";
-
-function PreviewPortalContainer() {
-  const context = useContext(HoverContext);
-  const [previewState, setPreviewState] = useState<HoverState | null>(null);
-
-  useEffect(() => {
-    if (context) {
-      (context as any)._registerSetter(setPreviewState);
-    }
-  }, [context]);
-
-  if (!previewState) return null;
-  return <ThumbnailPreview hoveredThumbnail={previewState} />;
-}
+    return (
+      <div
+        className="z-50 fixed pointer-events-none shadow-xl rounded-md top-1/10"
+        style={{
+          right: `${adjustedX}px`,
+          width: "40vw",
+          height: "auto",
+          padding: "4px",
+        }}
+      >
+        <img
+          src={url}
+          alt="Video thumbnail"
+          className="w-full h-auto object-contain rounded"
+        />
+      </div>
+    );
+  },
+);
 
 const BooleanTemplate = memo(
   ({ rowData, field }: { rowData: VideoT; field: keyof VideoT }) => {
@@ -89,6 +77,9 @@ const BooleanTemplate = memo(
       field == "downloaded"
         ? rowData["downloadStatus"] == "completed"
         : rowData[field];
+
+    console.log("watched to ture", value, field);
+
     return (
       <Tag
         pt={{ value: { style: { lineHeight: "1" } } }}
@@ -100,47 +91,48 @@ const BooleanTemplate = memo(
     );
   },
 );
-BooleanTemplate.displayName = "BooleanTemplate";
 
-interface TableCellProps {
-  rowData: VideoT;
-  onTagDoubleClick: (video: VideoT) => void;
-}
+const TagsCell = memo(
+  ({
+    rowData,
+    onTagDoubleClick,
+  }: {
+    rowData: VideoT;
+    onTagDoubleClick: (video: VideoT) => void;
+  }) => {
+    const hoverCtx = useContext(HoverContext);
 
-const TagsCell = memo(({ rowData, onTagDoubleClick }: TableCellProps) => {
-  const hoverCtx = useContext(HoverContext);
+    const handleMouseEnter = (event: React.MouseEvent) => {
+      if (!hoverCtx) return;
+      const rect = event.currentTarget.getBoundingClientRect();
+      hoverCtx.setHoveredThumbnail({
+        url: `${import.meta.env.VITE_FILE_BASE_URL || "http://localhost:8000/api/files/"}${rowData.thumbnailPathId || ""}`,
+        x: rect.right + 60,
+        y: rect.top,
+      });
+    };
 
-  const handleMouseEnter = (event: React.MouseEvent) => {
-    if (!hoverCtx) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    hoverCtx.setHoveredThumbnail({
-      url: `${import.meta.env.VITE_FILE_BASE_URL || "http://localhost:8000/api/files/"}${rowData.thumbnailPathId || ""}`,
-      x: rect.right + 60,
-      y: rect.top,
-    });
-  };
+    const handleMouseLeave = () => {
+      if (hoverCtx) hoverCtx.setHoveredThumbnail(null);
+    };
 
-  const handleMouseLeave = () => {
-    if (hoverCtx) hoverCtx.setHoveredThumbnail(null);
-  };
-
-  return (
-    <div
-      className="flex gap-2 cursor-pointer select-none"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-      onDoubleClick={(e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        onTagDoubleClick(rowData);
-      }}
-    >
-      <BooleanTemplate rowData={rowData} field="watched" />
-      <BooleanTemplate rowData={rowData} field="downloaded" />
-    </div>
-  );
-});
-TagsCell.displayName = "TagsCell";
+    return (
+      <div
+        className="flex gap-2 cursor-pointer select-none"
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          onTagDoubleClick(rowData);
+        }}
+      >
+        <BooleanTemplate rowData={rowData} field="watched" />
+        <BooleanTemplate rowData={rowData} field="downloaded" />
+      </div>
+    );
+  },
+);
 
 const UrlBody = memo(({ rowData }: { rowData: VideoT }) => {
   return (
@@ -162,7 +154,24 @@ const UrlBody = memo(({ rowData }: { rowData: VideoT }) => {
     </div>
   );
 });
-UrlBody.displayName = "UrlBody";
+
+function PreviewPortalContainer() {
+  const context = useContext(HoverContext);
+  const [previewState, setPreviewState] = useState<{
+    url: string;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (context) {
+      (context as any)._registerSetter(setPreviewState);
+    }
+  }, [context]);
+
+  if (!previewState) return null;
+  return <ThumbnailPreview hoveredThumbnail={previewState} />;
+}
 
 function TableGrid({
   onTagDoubleClick,
@@ -223,10 +232,10 @@ function TableGrid({
       removableSort
       sortMode="multiple"
       filterDisplay="row"
+      width={"100vw"}
       scrollable
-      scrollHeight="60vh"
       emptyMessage="No Videos, add using above form"
-      pt={{ root: { className: "text-[14px]" } }}
+      pt={{ root: { className: "text-[12px] rounded-lg" } }}
     >
       <Column
         field="url"
@@ -240,7 +249,7 @@ function TableGrid({
       />
       <Column
         header="ID"
-        body={(rowData) => <ProgressBarOrThumbnail rowData={rowData} />}
+        body={(rowData) => <ProgressBarOrID rowData={rowData} />}
       />
       <Column
         field="fullTitle"
@@ -281,11 +290,7 @@ function TableGrid({
   );
 }
 
-interface CopyButtonProps {
-  rowData: VideoT;
-}
-
-function CopyUrlButton({ rowData }: CopyButtonProps): JSX.Element {
+function CopyUrlButton({ rowData }: { rowData: VideoT }): JSX.Element {
   const [copied, setCopied] = useState<boolean>(false);
 
   const handleCopy = async (
@@ -314,15 +319,26 @@ function CopyUrlButton({ rowData }: CopyButtonProps): JSX.Element {
   );
 }
 
-export default function HistoryTable() {
+function HistoryTable() {
   const [visible, setVisible] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<VideoT>();
 
-  // Use a stable reference proxy to bypass provider value re-renders
   const [contextValue] = useState(() => {
-    let registerSetter: (s: HoverState | null) => void = () => {};
+    let registerSetter: (
+      s: {
+        url: string;
+        x: number;
+        y: number;
+      } | null,
+    ) => void = () => {};
     return {
-      setHoveredThumbnail: (state: HoverState | null) => registerSetter(state),
+      setHoveredThumbnail: (
+        state: {
+          url: string;
+          x: number;
+          y: number;
+        } | null,
+      ) => registerSetter(state),
       _registerSetter: (setter: any) => {
         registerSetter = setter;
       },
@@ -336,7 +352,7 @@ export default function HistoryTable() {
 
   return (
     <HoverContext.Provider value={contextValue}>
-      <div className="p-2 relative">
+      <div className="relative py-3">
         <Tooltip target=".qqq" mouseTrack mouseTrackLeft={10} />
 
         {selectedVideo && (
@@ -347,12 +363,12 @@ export default function HistoryTable() {
           />
         )}
 
-        {/* This updates inside its own boundary whenever state changes */}
         <PreviewPortalContainer />
 
-        {/* This grid is now completely untouched by hover updates */}
         <TableGrid onTagDoubleClick={handleTagDoubleClick} />
       </div>
     </HoverContext.Provider>
   );
 }
+
+export default HistoryTable;
