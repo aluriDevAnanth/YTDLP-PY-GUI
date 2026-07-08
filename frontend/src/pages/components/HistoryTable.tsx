@@ -78,8 +78,6 @@ const BooleanTemplate = memo(
         ? rowData["downloadStatus"] == "completed"
         : rowData[field];
 
-    console.log("watched to ture", value, field);
-
     return (
       <Tag
         pt={{ value: { style: { lineHeight: "1" } } }}

@@ -1,15 +1,18 @@
 import { Toast } from "primereact/toast";
 import { useEffect } from "react";
-import useSSEStore, { type typeFields } from "src/context/SSEStore";
+import {
+  useStartupSSEStore,
+  type MandatorySSEFields,
+} from "src/context/SSEStore";
 import useVideoStore from "src/context/videoStore";
-import { type NotifyT, type VideoProgressT, VideoS } from "src/schema";
+import { VideoS, type NotifyT, type VideoProgressT } from "src/schema";
 import { socket } from "src/socket";
 
 type Props = {
   toastRef: React.RefObject<Toast | null>;
 };
 
-export type StartupSSE = typeFields & {
+export type StartupSSE = MandatorySSEFields & {
   message: string;
   typee: "success" | "error" | "ongoing";
 };
@@ -17,6 +20,7 @@ export type StartupSSE = typeFields & {
 export default function SocketHandler({ toastRef }: Props) {
   const upsertVideoProgress = useVideoStore((s) => s.upsertVideoProgress);
   const upsertVideo = useVideoStore((s) => s.upsertVideo);
+  const upsertSSE = useStartupSSEStore((state) => state.upsertSSE);
 
   useEffect(() => {
     socket.connect();
@@ -51,10 +55,13 @@ export default function SocketHandler({ toastRef }: Props) {
     });
 
     socket.on("startupp", (data: StartupSSE) => {
-      console.log("startupp", data);
-
-      const upsertSSE = useSSEStore<StartupSSE>().getState().upsertSSE;
-      upsertSSE(data);
+      upsertSSE({
+        ...data,
+        // typee: "ongoing",
+        // typee: "error",
+        sseType: "startupp",
+        dataID: "startupp",
+      });
     });
 
     socket.on("disconnect", () => {

@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from src.db import FileDB, VideoDB, get_session, init_db
 from src.DownloadStarter import download_starter
-from src.schemas import Notify, Startup
+from src.schemas import Notify, Startup, TriStatus
 from src.SioEmitter import SioEmitter
 from src.sockets import client_set, sio
 from src.video_route import video_router
@@ -35,20 +35,35 @@ async def connect(sid, environ, auth):
         )
     )
 
-    if not src.req.is_ffmpeg_available(Path("req")):
-        await SioEmitter.startupp(
-            Startup(
-                message=f"📥 Downloading FFmpeg for {platform.system()}...",
-                typee="ongoing",
+    try:
+        if not src.req.is_ffmpeg_available():
+            await SioEmitter.startupp(
+                Startup(
+                    message=f"📥 Downloading FFmpeg for {platform.system()}...",
+                    typee=TriStatus.ONGOING,
+                )
             )
-        )
-    else:
-        exe_name = "ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg"
-        local_ffmpeg = Path("req") / exe_name
+            src.req.download_ffmpeg()
+            await SioEmitter.startupp(
+                Startup(
+                    message=f"ℹ️ FFmpeg is already available locally at: {local_ffmpeg}",
+                    typee=TriStatus.SUCCESS,
+                )
+            )
+        else:
+            exe_name = "ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg"
+            local_ffmpeg = Path("req") / exe_name
+            await SioEmitter.startupp(
+                Startup(
+                    message=f"ℹ️ FFmpeg is already available locally at: {local_ffmpeg}",
+                    typee=TriStatus.SUCCESS,
+                )
+            )
+    except Exception as e:
         await SioEmitter.startupp(
             Startup(
-                message=f"ℹ️ FFmpeg is already available locally at: {local_ffmpeg}",
-                typee="ongoing",
+                message=str(e),
+                typee=TriStatus.ERROR,
             )
         )
 

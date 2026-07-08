@@ -15,6 +15,7 @@
     "@vidstack/react": "^1.12.13",
     "axios": "^1.10.0",
     "dotenv": "^17.2.0",
+    "immer": "^11.1.11",
     "js-file-download": "^0.4.12",
     "primeicons": "^7.0.0",
     "primereact": "^10.9.6",

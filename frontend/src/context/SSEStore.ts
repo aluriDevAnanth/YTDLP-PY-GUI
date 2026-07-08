@@ -1,57 +1,61 @@
+import type { StartupSSE } from "src/pages/components/SocketHandler";
 import { create } from "zustand";
-import { devtools } from "zustand/middleware";
 
-export type typeFields = { sseType: string; dataID: string };
+export interface MandatorySSEFields {
+  sseType: string;
+  dataID: string;
+}
 
-export type SSET<T extends typeFields> = {
+export interface SSET<T extends MandatorySSEFields> {
   [sseType: string]: {
     [dataID: string]: T;
   };
-};
+}
 
-interface SSEStore<T extends typeFields> {
+interface SSEStore<T extends MandatorySSEFields> {
   sse: SSET<T>;
-
   upsertSSE: (item: T) => void;
   removeSSE: (item: T) => void;
 }
 
-const useSSEStore = <T extends typeFields>() =>
-  create<SSEStore<T>>()(
-    devtools(
-      (set) => ({
-        sse: {},
-        upsertSSE: (item: T) =>
-          set((state) => {
-            const currentTypeData = state.sse[item.sseType] || {};
-            return {
-              sse: {
-                ...state.sse,
-                [item.sseType]: {
-                  ...currentTypeData,
-                  [item.dataID]: item,
-                },
-              },
-            };
-          }),
-        removeSSE: (item: T) =>
-          set((state) => {
-            if (!state.sse[item.sseType]) return state;
-            const updatedTypeData = { ...state.sse[item.sseType] };
-            delete updatedTypeData[item.dataID];
-            return {
-              sse: {
-                ...state.sse,
-                [item.sseType]: updatedTypeData,
-              },
-            };
-          }),
+const useSSEStore = <T extends MandatorySSEFields>() =>
+  create<SSEStore<T>>()((set) => ({
+    sse: {},
+    upsertSSE: (item: T) =>
+      set((state) => {
+        if (!item["sseType"] || !item.dataID) {
+          console.log(
+            `[Error](upsertSSE): sseType or dataID does not exist on given data: \n ${item}`,
+          );
+          return {};
+        }
+        const currentTypeData = state.sse[item.sseType] || {};
+        return {
+          sse: {
+            ...state.sse,
+            [item.sseType]: {
+              ...currentTypeData,
+              [item.dataID]: item,
+            },
+          },
+        };
       }),
-      {
-        name: "sse-store",
-        enabled: process.env.NODE_ENV !== "production",
-      },
-    ),
-  );
+    removeSSE: (item: T) =>
+      set((state) => {
+        if (!state.sse[item.sseType]) return {};
+
+        const updatedTypeData = { ...state.sse[item.sseType] };
+        delete updatedTypeData[item.dataID];
+
+        return {
+          sse: {
+            ...state.sse,
+            [item.sseType]: updatedTypeData,
+          },
+        };
+      }),
+  }));
+
+export const useStartupSSEStore = useSSEStore<StartupSSE>();
 
 export default useSSEStore;

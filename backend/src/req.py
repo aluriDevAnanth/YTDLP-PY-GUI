@@ -7,8 +7,13 @@ from pathlib import Path
 
 import requests
 
+req_dir = Path("req")
+req_dir.mkdir(exist_ok=True)
+temp_dir = req_dir / "ffmpeg_temp"
+temp_dir.mkdir(exist_ok=True)
 
-def is_ffmpeg_available(req_dir: Path) -> bool:
+
+def is_ffmpeg_available() -> bool:
     if shutil.which("ffmpeg"):
         print("ℹ️ FFmpeg is already available on the system PATH.")
         return True
@@ -18,7 +23,6 @@ def is_ffmpeg_available(req_dir: Path) -> bool:
     if local_ffmpeg.exists():
         print(f"ℹ️ FFmpeg is already available locally at: {local_ffmpeg}")
         return True
-
     return False
 
 
@@ -55,16 +59,6 @@ def extract_archive(archive_path, target_dir):
 
 
 def download_ffmpeg():
-    req_dir = Path("req")
-
-    if is_ffmpeg_available(req_dir):
-        print("🚀 Skipping download.")
-        return
-
-    req_dir.mkdir(exist_ok=True)
-    temp_dir = req_dir / "ffmpeg_temp"
-    temp_dir.mkdir(exist_ok=True)
-
     try:
         url, ext = get_ffmpeg_url_and_ext()
         archive_path = temp_dir / f"ffmpeg_download{ext}"
@@ -122,12 +116,10 @@ def download_ffmpeg():
 
     except Exception as e:
         print(f"❌ Error during setup: {e}")
+        raise Exception(f"❌ Error during ffmepg setup: {e}")
     finally:
         try:
             shutil.rmtree(temp_dir)
             print(f"[download_ffmpeg] 🧹 Cleaned up: {temp_dir}")
         except Exception as e:
             print(f"[download_ffmpeg] ⚠️ Failed to cleanup {temp_dir}: {e}")
-
-
-download_ffmpeg()
