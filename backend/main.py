@@ -35,6 +35,11 @@ async def connect(sid, environ, auth):
         )
     )
 
+    asyncio.create_task(handle_ffmpeg_download_sequence(sid))
+
+
+async def handle_ffmpeg_download_sequence(sid):
+    """Handles the download sequence safely without killing the socket connection lifecycle."""
     try:
         if not src.req.is_ffmpeg_available():
             await SioEmitter.startupp(
@@ -43,7 +48,12 @@ async def connect(sid, environ, auth):
                     typee=TriStatus.ONGOING,
                 )
             )
-            src.req.download_ffmpeg()
+            await asyncio.sleep(0.2)
+
+            await asyncio.to_thread(src.req.download_ffmpeg)
+
+            exe_name = "ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg"
+            local_ffmpeg = Path("req") / exe_name
             await SioEmitter.startupp(
                 Startup(
                     message=f"ℹ️ FFmpeg is already available locally at: {local_ffmpeg}",

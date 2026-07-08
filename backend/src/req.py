@@ -116,7 +116,7 @@ def download_ffmpeg():
 
     except Exception as e:
         print(f"❌ Error during setup: {e}")
-        raise Exception(f"❌ Error during ffmepg setup: {e}")
+        raise Exception(f"❌ Error during ffmepg setup: {str(e)}")
     finally:
         try:
             shutil.rmtree(temp_dir)

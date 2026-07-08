@@ -18,7 +18,7 @@ interface SSEStore<T extends MandatorySSEFields> {
   removeSSE: (item: T) => void;
 }
 
-const createSSEStore = <T extends MandatorySSEFields>(storeName: string) =>
+const createSSEStore = <T extends MandatorySSEFields>() =>
   create<SSEStore<T>>()(
     immer((set) => ({
       sse: {},
@@ -59,8 +59,6 @@ export type StartupSSE = MandatorySSEFields & {
   typee: "success" | "error" | "ongoing";
 };
 
-// Initialize the hook instance directly from the configured creator function
-export const useStartupSSEStore =
-  createSSEStore<StartupSSE>("startup_sse_store");
+export const useStartupSSEStore = createSSEStore<StartupSSE>();
 
 export default createSSEStore;
