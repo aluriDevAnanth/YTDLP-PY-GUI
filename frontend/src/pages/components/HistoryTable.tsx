@@ -16,7 +16,7 @@ import {
   useEffect,
   useState,
 } from "react";
-import useVideoStore from "src/context/videoStore";
+import useVideoStore from "src/context/VideoStore";
 import { type VideoT } from "src/schema";
 import ProgressBarOrID from "./ProgressBarOrID";
 import TableRowOptionMenu from "./TableRowOptionMenu";

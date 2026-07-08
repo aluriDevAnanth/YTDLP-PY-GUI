@@ -24,7 +24,7 @@ import {
   useRef,
   useState,
 } from "react";
-import useVideoStore from "src/context/videoStore";
+import useVideoStore from "src/context/VideoStore";
 import type { VideoT } from "src/schema";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];

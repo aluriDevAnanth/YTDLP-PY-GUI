@@ -6,7 +6,7 @@ import { Dialog } from "primereact/dialog";
 import { Toast } from "primereact/toast";
 import { type ReactNode, useRef, useState } from "react";
 import ReactJson from "react-json-view";
-import useVideoStore from "src/context/videoStore";
+import useVideoStore from "src/context/VideoStore";
 import { type VideoT } from "src/schema";
 import VideoDialog from "./VideoDialog";
 

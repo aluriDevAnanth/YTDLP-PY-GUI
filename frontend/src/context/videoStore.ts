@@ -1,45 +1,40 @@
 import type { VideoProgressT, VideoT } from "src/schema";
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
+import { immer } from "zustand/middleware/immer";
 
 const useVideoStore = create<VideoStore>()(
   devtools(
-    (set) => ({
+    immer((set) => ({
       videos: {},
       videoProgress: {},
       globalFilter: "",
 
       upsertVideo: (video: VideoT) =>
-        set((state) => ({
-          videos: {
-            ...state.videos,
-            [video.id]: video,
-          },
-        })),
+        set((state) => {
+          state.videos[video.id] = video;
+        }),
 
       removeVideo: (id: string) =>
         set((state) => {
-          const { [id]: _, ...remainingVideos } = state.videos;
-          return { videos: remainingVideos };
+          delete state.videos[id];
         }),
 
       upsertVideoProgress: (progress: VideoProgressT) =>
-        set((state) => ({
-          videoProgress: {
-            ...state.videoProgress,
-            [progress.id]: progress,
-          },
-        })),
+        set((state) => {
+          state.videoProgress[progress.id] = progress;
+        }),
 
       removeVideoProgress: (id: string) =>
         set((state) => {
-          const { [id]: _, ...remainingProgress } = state.videoProgress;
-          return { videoProgress: remainingProgress };
+          delete state.videoProgress[id];
         }),
 
-      setGlobalFilter: (filter: string) => set({ globalFilter: filter }),
-    }),
+      setGlobalFilter: (filter: string) =>
+        set((state) => {
+          state.globalFilter = filter;
+        }),
+    })),
     {
       name: "video-store",
       enabled: process.env.NODE_ENV !== "production",

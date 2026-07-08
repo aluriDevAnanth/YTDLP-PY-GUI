@@ -4,7 +4,7 @@ import { Button } from "primereact/button";
 import { ProgressBar } from "primereact/progressbar";
 import { ProgressSpinner } from "primereact/progressspinner";
 import { useEffect, useMemo, useRef, useState } from "react";
-import useVideoStore from "src/context/videoStore";
+import useVideoStore from "src/context/VideoStore";
 import { type VideoT } from "src/schema";
 
 function ProgressBarOrID({ rowData }: { rowData: VideoT }) {

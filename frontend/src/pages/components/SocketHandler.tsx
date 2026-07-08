@@ -1,20 +1,12 @@
 import { Toast } from "primereact/toast";
 import { useEffect } from "react";
-import {
-  useStartupSSEStore,
-  type MandatorySSEFields,
-} from "src/context/SSEStore";
-import useVideoStore from "src/context/videoStore";
+import { useStartupSSEStore, type StartupSSE } from "src/context/SSEStore";
+import useVideoStore from "src/context/VideoStore";
 import { VideoS, type NotifyT, type VideoProgressT } from "src/schema";
 import { socket } from "src/socket";
 
 type Props = {
   toastRef: React.RefObject<Toast | null>;
-};
-
-export type StartupSSE = MandatorySSEFields & {
-  message: string;
-  typee: "success" | "error" | "ongoing";
 };
 
 export default function SocketHandler({ toastRef }: Props) {

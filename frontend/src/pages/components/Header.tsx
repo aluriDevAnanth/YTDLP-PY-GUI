@@ -4,7 +4,7 @@ import { Dialog } from "primereact/dialog";
 import { InputText } from "primereact/inputtext";
 import { Menubar } from "primereact/menubar";
 import { useState } from "react";
-import useVideoStore from "src/context/videoStore";
+import useVideoStore from "src/context/VideoStore";
 import DownloadForm from "./DownloadForm";
 import ThemeSwitcher from "./ThemeSwitcher";
 
