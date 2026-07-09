@@ -1,12 +1,12 @@
 import asyncio
 from http import HTTPStatus
 from pathlib import Path
+
 from aiohttp import web
 from sqlmodel import select
-
-from src.Ytdlp import Ytdlp
-from src.db import get_session, VideoDB, FileDB
+from src.db import FileDB, VideoDB, get_session
 from src.schemas import Video
+from src.Ytdlp import Ytdlp
 
 video_router = web.RouteTableDef()
 
@@ -26,10 +26,13 @@ async def get_videos(request):
 @video_router.get("/api/video/{id}")
 async def get_video(req: web.Request):
     with get_session() as session:
-        result = session.exec(select(VideoDB).where(
-            VideoDB.id == req.match_info.get("id"))).one_or_none()
+        result = session.exec(
+            select(VideoDB).where(VideoDB.id == req.match_info.get("id"))
+        ).one_or_none()
         if not result:
-            return web.json_response({"error": f"Video not found with id {req.match_info.get("id")}"})
+            return web.json_response(
+                {"error": f"Video not found with id {req.match_info.get("id")}"}
+            )
         return web.json_response(result.model_dump())
 
 

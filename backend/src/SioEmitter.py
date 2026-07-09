@@ -19,3 +19,7 @@ class SioEmitter:
     @staticmethod
     async def startupp(startup: Startup):
         await sio.emit("startupp", startup.model_dump(), to=next(iter(client_set)))
+
+    @staticmethod
+    async def remove_video(id: str):
+        await sio.emit("remove_video", id, to=next(iter(client_set)))

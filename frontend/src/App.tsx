@@ -1,6 +1,7 @@
+import axios from "axios";
 import { clsx } from "clsx";
 import { Toast } from "primereact/toast";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useStartupSSEStore } from "./context/SSEStore";
 import Header from "./pages/components/Header";
 import SocketHandler from "./pages/components/SocketHandler";
@@ -8,29 +9,45 @@ import Home from "./pages/Home";
 
 function App() {
   const toastMain = useRef<Toast>(null);
+  const [isRestarting, setIsRestarting] = useState(false);
 
   const startupp = useStartupSSEStore(
     (state) => state.sse?.["startupp"]?.["startupp"],
   );
   const isLoading = startupp?.typee;
 
+  const handleBackendRestart = async () => {
+    setIsRestarting(true);
+    try {
+      await axios.post("http://localhost:8000/api/restart");
+    } catch (error) {
+      console.error("Failed to execute server restart trigger:", error);
+    } finally {
+      setTimeout(() => {
+        setIsRestarting(false);
+      }, 3000);
+    }
+  };
+
   return (
     <>
-      {isLoading === "ongoing" && (
+      {/* Full screen blocking loading spinner for initial connect OR live restart processing */}
+      {(isLoading === "ongoing" || isRestarting) && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-[#1e1e24] text-white">
           <div className="text-center font-sans">
             <div className="mx-auto mb-5 h-12 w-12 animate-spin rounded-full border-4 border-white/10 border-t-[#3b82f6]"></div>
             <h2 className="text-lg font-medium tracking-wide">
-              {startupp?.message || "Connecting to services..."}
+              {isRestarting
+                ? "Rebooting backend process..."
+                : startupp?.message || "Connecting to services..."}
             </h2>
           </div>
         </div>
       )}
 
-      {isLoading === "error" && (
+      {isLoading === "error" && !isRestarting && (
         <div className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-[#1e1e24] text-white p-6">
           <div className="text-center font-sans max-w-md">
-            {/* Visual Anchor Warning Icon */}
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-500/10 text-red-500">
               <svg
                 className="h-8 w-8"
@@ -47,12 +64,18 @@ function App() {
               </svg>
             </div>
             <h2 className="text-xl font-semibold tracking-wide text-red-400 mb-2">
-              Backend Starup Failed
+              Backend Startup Failed
             </h2>
             <p className="text-sm text-gray-400 mb-6">
               {startupp?.message ||
                 "An unexpected error occurred while initializing services."}
             </p>
+            <button
+              onClick={handleBackendRestart}
+              className="px-4 py-2 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-medium rounded-md text-sm transition-colors duration-150"
+            >
+              Retry System Start
+            </button>
           </div>
         </div>
       )}
@@ -60,14 +83,14 @@ function App() {
       <div
         className={clsx(
           "transition-opacity duration-400 ease-in-out",
-          isLoading !== "success"
+          isLoading !== "success" || isRestarting
             ? "pointer-events-none opacity-0"
             : "opacity-100",
         )}
       >
         <Toast ref={toastMain} />
         <SocketHandler toastRef={toastMain} />
-        <Header />
+        <Header onRestart={handleBackendRestart} isRestarting={isRestarting} />
         <Home />
       </div>
     </>

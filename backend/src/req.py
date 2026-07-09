@@ -12,7 +12,6 @@ from src.SioEmitter import SioEmitter, Startup
 REQ_DIR = Path("req")
 REQ_DIR.mkdir(exist_ok=True)
 
-# OS Configuration Map - Real, concrete direct executable source mirrors
 OS_CONFIGS = {
     "windows": (
         "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
@@ -35,12 +34,12 @@ OS_CONFIGS = {
 def is_ffmpeg_available() -> bool:
     """Checks if FFmpeg is available on the system PATH or locally in req/."""
     if shutil.which("ffmpeg"):
-        print("ℹ️ FFmpeg is already available on the system PATH.")
+        print("ℹ️  FFmpeg is already available on the system PATH.")
         return True
 
     exe_name = "ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg"
     if (REQ_DIR / exe_name).exists():
-        print(f"ℹ️ FFmpeg is already available locally at: {REQ_DIR / exe_name}")
+        print(f"ℹ️  FFmpeg is already available locally at: {REQ_DIR / exe_name}")
         return True
     return False
 
@@ -92,7 +91,6 @@ def download_ffmpeg(progress_callback=None):
                             )
                             downloaded_mbs = downloaded / (1024 * 1024)
 
-                            # Calculate ETA in seconds
                             remaining_mbs = total_mbs - downloaded_mbs
                             if speed_mbs > 0:
                                 eta_secs = int(remaining_mbs / speed_mbs)
@@ -106,7 +104,6 @@ def download_ffmpeg(progress_callback=None):
                             else:
                                 eta_str = "--:--"
 
-                            # Pass all metrics down to the callback function
                             progress_callback(
                                 percent, speed_mbs, total_mbs, downloaded_mbs, eta_str
                             )
@@ -151,7 +148,6 @@ async def handle_ffmpeg_download_sequence(sid):
         if not is_ffmpeg_available():
             loop = asyncio.get_running_loop()
 
-            # Thread-safe callback receiving percent, speed, total size, downloaded size, and ETA string
             def report_progress(percent, speed_mbs, total_mbs, downloaded_mbs, eta_str):
                 asyncio.run_coroutine_threadsafe(
                     SioEmitter.startupp(
@@ -163,7 +159,6 @@ async def handle_ffmpeg_download_sequence(sid):
                     loop,
                 )
 
-            # Send initial message status
             await SioEmitter.startupp(
                 Startup(
                     message=f"📥 Downloading FFmpeg for {platform.system()}... 0% | 0.0 MB of 0.0 MB (0.00 MB/s) | ETA: --:--",

@@ -10,6 +10,7 @@ import ffmpeg
 from PIL import Image
 from sqlmodel import select, update
 from src.db import FileDB, VideoDB, get_session
+from src.req import REQ_DIR
 from src.schemas import DownloadStatus, ThumbnailVTTConfig, Video, VideoProgress
 from src.SioEmitter import SioEmitter
 from yt_dlp import YoutubeDL
@@ -76,7 +77,11 @@ class Ytdlp:
                 VIDEO_DIR
                 / "%(height)sp_%(extractor_key)s___%(title).50s___%(id)s.%(ext)s"
             ),
-            "format": "worst",
+            "format": (
+                "bestvideo+bestaudio/best"
+                if self.video.format == "BEST"
+                else self.video.format.lower()
+            ),
             "restrictfilenames": True,
             "noplaylist": True,
             "nooverwrites": True,
@@ -97,6 +102,9 @@ class Ytdlp:
             "continue": True,
             "part": True,
             "merge_output_format": "mp4",
+            "writeinfojson": True,
+            "ffmpeg_location": REQ_DIR,
+            # "skip_download": True,
             # "verbose": True,
         }
 
@@ -106,7 +114,24 @@ class Ytdlp:
                     None, lambda: ydl.download([self.video.url])
                 )
         except Exception as e:
-            print(111, e)
+            try:
+                print("❌ [Ytdlp__download_video] Error: ", e)
+                with get_session() as session:
+                    print(self.video.id)
+                    video = session.get(VideoDB, self.video.id)
+                    if video:
+                        session.delete(video)
+                        session.commit()
+                    instance = Ytdlp.get_instance(self.video.id)
+                    if instance:
+                        instance.cancel()
+                        print(
+                            f"ℹ️ [Ytdlp__download_video__finally] Error: Removing video with id {self.video.id} and url {self.video.url} because of above error"
+                        )
+                        Ytdlp.remove_instance(self.video.id)
+                        await SioEmitter.remove_video(self.video.id)
+            except Exception as e:
+                print("❌ [Ytdlp__download_video__except] Error: ", e)
 
     def _progress_wrapper(self, d):
         if self.canceled:

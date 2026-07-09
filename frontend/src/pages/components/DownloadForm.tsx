@@ -17,9 +17,9 @@ import {
 } from "../../schema";
 
 const formatOptions = [
-  { label: "Best", value: "best" },
-  { label: "Audio Only", value: "audioonly" },
-  { label: "Worst", value: "worst" },
+  { label: "Best", value: "BEST" },
+  { label: "Audio Only", value: "BESTAUDIO" },
+  { label: "Worst", value: "WORST" },
 ];
 
 async function hashUrl(url: string): Promise<string> {
@@ -43,7 +43,7 @@ export default function DownloadForm() {
     defaultValues: {
       id: "",
       url: "",
-      format: "best",
+      format: "BEST",
       type: "download",
     },
     resolver: zodResolver(DownloadFormS),

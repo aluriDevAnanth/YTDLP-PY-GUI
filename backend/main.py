@@ -1,6 +1,7 @@
 import asyncio
 import os
-import platform
+import sys
+import time
 from contextlib import asynccontextmanager
 from http import HTTPStatus
 from pathlib import Path
@@ -20,14 +21,6 @@ from watchfiles import DefaultFilter, arun_process
 
 app = web.Application()
 sio.attach(app)
-
-import asyncio
-import os
-import platform
-import shutil
-import time
-import urllib.request
-from pathlib import Path
 
 
 @sio.event
@@ -111,7 +104,36 @@ async def serve_file(request: web.Request):
         return web.json_response({"error": str(e)}, status=500)
 
 
-app.add_routes([web.get("/api/", index), web.get("/api/files/{fileId:.*}", serve_file)])
+async def restart_backend(request: web.Request):
+    """Triggers an app shutdown sequence.
+
+    The wrapping parent loop intercepts the clean exit status and triggers
+    an automatic system boot-up.
+    """
+
+    def kill_self():
+        # Short timeout protects the transmission stream buffer context
+        time.sleep(0.5)
+        print("React UI called for a system reboot. Terminating process...")
+        sys.exit(3)
+
+    loop = asyncio.get_running_loop()
+    loop.run_in_executor(None, kill_self)
+
+    return web.json_response(
+        {"status": "restarting", "message": "Backend engine is rebooting..."},
+        status=HTTPStatus.OK,
+    )
+
+
+# Standard Application Routes setup
+app.add_routes(
+    [
+        web.get("/api/", index),
+        web.get("/api/files/{fileId:.*}", serve_file),
+        web.post("/api/restart", restart_backend),
+    ]
+)
 app.add_routes(video_router)
 
 cors = aiohttp_cors.setup(
@@ -159,10 +181,33 @@ class PyOnlyFilter(DefaultFilter):
 
 
 def runn():
-    asyncio.run(run())
+    try:
+        asyncio.run(run())
+    except Exception as e:
+        print(f"Server Worker Crash Caught: {e}")
+        sys.exit(3)
+
+
+async def watch_loop():
+    """Keeps the process watcher alive and active even if the target script
+
+    reloads or issues an exit code response.
+    """
+    while True:
+        try:
+            await arun_process(
+                ".", target=runn, callback=callback, watch_filter=PyOnlyFilter()
+            )
+        except (KeyboardInterrupt, SystemExit):
+            print(
+                "\nIntercepted execution restart signal. Spawning a fresh instance...\n"
+            )
+            await asyncio.sleep(1.0)
+            continue
 
 
 if __name__ == "__main__":
-    asyncio.run(
-        arun_process(".", target=runn, callback=callback, watch_filter=PyOnlyFilter())
-    )
+    try:
+        asyncio.run(watch_loop())
+    except KeyboardInterrupt:
+        print("Application stopped entirely.")

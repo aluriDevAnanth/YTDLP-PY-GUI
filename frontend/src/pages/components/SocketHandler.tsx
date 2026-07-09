@@ -12,6 +12,7 @@ type Props = {
 export default function SocketHandler({ toastRef }: Props) {
   const upsertVideoProgress = useVideoStore((s) => s.upsertVideoProgress);
   const upsertVideo = useVideoStore((s) => s.upsertVideo);
+  const removeVideo = useVideoStore((s) => s.removeVideo);
   const upsertSSE = useStartupSSEStore((state) => state.upsertSSE);
 
   useEffect(() => {
@@ -54,6 +55,16 @@ export default function SocketHandler({ toastRef }: Props) {
         sseType: "startupp",
         dataID: "startupp",
       });
+    });
+
+    socket.on("remove_video", (id: string) => {
+      const dVideo = useVideoStore.getState().videos[id];
+      toastRef.current?.show({
+        severity: "error",
+        summary: "Video Delete",
+        detail: `Removing video with id ${dVideo.id} and url ${dVideo.url} because of error while downloading video`,
+      });
+      removeVideo(id);
     });
 
     socket.on("disconnect", () => {

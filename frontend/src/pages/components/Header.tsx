@@ -8,7 +8,12 @@ import useVideoStore from "src/context/VideoStore";
 import DownloadForm from "./DownloadForm";
 import ThemeSwitcher from "./ThemeSwitcher";
 
-function Header() {
+interface HeaderProps {
+  onRestart: () => void;
+  isRestarting: boolean;
+}
+
+function Header({ onRestart, isRestarting }: HeaderProps) {
   const [visible, setVisible] = useState(false);
   const globalFilter = useVideoStore((state) => state.globalFilter);
   return (
@@ -69,9 +74,21 @@ function Header() {
           </div>
         }
         end={
-          <>
+          <div className="flex items-center gap-2">
+            {/* Backend Restart Button */}
+            <Button
+              onClick={onRestart}
+              disabled={isRestarting}
+              className="py-[4px] px-[4px]"
+              severity="danger"
+              outlined
+              tooltip="Restart Backend Server"
+              tooltipOptions={{ position: "bottom" }}
+            >
+              <Icon icon="tabler:refresh" className="text-[22px]" />
+            </Button>
             <ThemeSwitcher />
-          </>
+          </div>
         }
         className="rounded-lg border-b shadow-sm px-3 py-2"
       />

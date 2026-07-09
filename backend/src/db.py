@@ -1,19 +1,19 @@
+import uuid
 from contextlib import contextmanager
-from typing import Optional
 from enum import Enum
 from pathlib import Path
-import uuid
+from typing import Optional
 
 from sqlalchemy import create_engine
-from sqlmodel import Field, SQLModel, Session
+from sqlmodel import Field, Session, SQLModel
 
 Path("./data").mkdir(parents=True, exist_ok=True)
 
 
 class QualityFormat(str, Enum):
-    BEST = "best"
-    BESTAUDIO = "best"
-    WORST = "best"
+    BEST = "BEST"
+    BESTAUDIO = "BESTAUDIO"
+    WORST = "WORST"
 
 
 class DownloadType(str, Enum):

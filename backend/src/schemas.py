@@ -2,6 +2,7 @@ from enum import Enum
 from pathlib import Path
 
 from pydantic import BaseModel, Field
+from src.db import QualityFormat
 
 
 class DownloadStatus(str, Enum):
@@ -10,12 +11,6 @@ class DownloadStatus(str, Enum):
     PAUSED = "paused"
     COMPLETED = "completed"
     FAILED = "failed"
-
-
-class Format(str, Enum):
-    BEST = "best"
-    AUDIOONLY = "audio_only"
-    WORST = "worst"
 
 
 class Video(BaseModel):
@@ -31,7 +26,7 @@ class Video(BaseModel):
     watched: bool = False
     downloaded: bool = False
     prevWatchTime: int = 0
-    format: str = Format.BEST
+    format: str = QualityFormat.BEST
     type: str = "download"
     videoPathId: str = ""
     thumbnailPathId: str = ""

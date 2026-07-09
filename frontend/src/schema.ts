@@ -3,7 +3,7 @@ import * as z from "zod";
 export const DownloadFormS = z.object({
   id: z.string(),
   url: z.url("Please enter a valid URL"),
-  format: z.enum(["best", "bestaudio", "worst"]),
+  format: z.enum(["BEST", "BESTAUDIO", "WORST"]),
   type: z.enum(["scan", "download"]),
 });
 
