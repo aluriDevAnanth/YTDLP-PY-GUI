@@ -2,9 +2,11 @@ import asyncio
 
 from sqlmodel import or_, select
 from src.db import VideoDB, get_session
-from src.schemas import DownloadStatus
+from src.logger import get_logger
+from src.schemas import DownloadStatus, Video
 from src.Ytdlp import Ytdlp
-from src.schemas import Video
+
+logger = get_logger("backend.download_starter")
 
 
 class DownloadStarter:
@@ -25,7 +27,7 @@ class DownloadStarter:
                 videos = result.all()
 
                 if not videos:
-                    print("[INFO] No videos in queue.")
+                    logger.info("No videos in queue.")
                     return
 
                 for video_db in videos:
@@ -35,10 +37,9 @@ class DownloadStarter:
                     task = asyncio.create_task(ytdlp.download_video())
                     self.download_tasks.append(task)
 
-                print(
-                    f"[INFO] Started {len(self.download_tasks)} download task(s).")
+                logger.info("Started %s download task(s).", len(self.download_tasks))
         except Exception as e:
-            print("DownloadStarter.start", e)
+            logger.exception("DownloadStarter.start failed")
 
 
 download_starter = DownloadStarter()

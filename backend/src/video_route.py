@@ -5,9 +5,11 @@ from pathlib import Path
 from aiohttp import web
 from sqlmodel import select
 from src.db import FileDB, VideoDB, get_session
+from src.logger import get_logger
 from src.schemas import Video
 from src.Ytdlp import Ytdlp
 
+logger = get_logger("backend.video_route")
 video_router = web.RouteTableDef()
 
 
@@ -62,7 +64,7 @@ async def post_handler(request: web.Request):
 
             return web.json_response(model_to_dict(video_model))
     except Exception as e:
-        print("POST/api/video", e)
+        logger.exception("POST /api/video failed")
         return web.json_response({"error": str(e)}, status=500)
 
 
@@ -133,7 +135,7 @@ async def delete_video(req: web.Request):
                             path.unlink()
                         session.delete(file)
                 except Exception as e:
-                    print(f"Failed to delete file for ID '{path_id}': {e}")
+                    logger.exception("Failed to delete file for ID '%s'", path_id)
 
             session.delete(video)
             session.commit()
@@ -146,5 +148,5 @@ async def delete_video(req: web.Request):
             return web.json_response({"id": video_id, "status": "deleted"})
 
     except Exception as e:
-        print("DELETE /api/video", e)
+        logger.exception("DELETE /api/video failed")
         return web.json_response({"error": str(e)}, status=500)

@@ -13,11 +13,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from src.db import FileDB, VideoDB, get_session, init_db
 from src.DownloadStarter import download_starter
+from src.logger import get_logger
 from src.schemas import Notify, Startup, TriStatus
 from src.SioEmitter import SioEmitter
 from src.sockets import client_set, sio
 from src.video_route import video_router
 from watchfiles import DefaultFilter, arun_process
+
+logger = get_logger("backend.main")
 
 app = web.Application()
 sio.attach(app)
@@ -25,7 +28,7 @@ sio.attach(app)
 
 @sio.event
 async def connect(sid, environ, auth):
-    print(f"Client Connected: {sid}")
+    logger.info("Client Connected: %s", sid)
     client_set.add(sid)
     await SioEmitter.notify(
         Notify(
@@ -35,12 +38,12 @@ async def connect(sid, environ, auth):
             extraData={},
         )
     )
-    asyncio.create_task(src.req.handle_ffmpeg_download_sequence(sid))
+    await src.req.ensure_ffmpeg_setup(sid)
 
 
 @sio.event
 async def disconnect(sid):
-    print(f"Client disconnected: {sid}")
+    logger.info("Client disconnected: %s", sid)
     client_set.discard(sid)
 
 
@@ -100,7 +103,7 @@ async def serve_file(request: web.Request):
         )
 
     except Exception as e:
-        print("[serve_file] Exception caught:", e)
+        logger.exception("[serve_file] Exception caught")
         return web.json_response({"error": str(e)}, status=500)
 
 
@@ -114,7 +117,7 @@ async def restart_backend(request: web.Request):
     def kill_self():
         # Short timeout protects the transmission stream buffer context
         time.sleep(0.5)
-        print("React UI called for a system reboot. Terminating process...")
+        logger.warning("React UI called for a system reboot. Terminating process...")
         sys.exit(3)
 
     loop = asyncio.get_running_loop()
@@ -161,7 +164,7 @@ for route in list(app.router.routes()):
 async def callback(changes):
     await asyncio.sleep(0.2)
     os.system("cls" if os.name == "nt" else "clear")
-    print("Changes detected:", changes)
+    logger.info("Changes detected: %s", changes)
 
 
 async def run():
@@ -170,6 +173,7 @@ async def run():
     await runner.setup()
     site = web.TCPSite(runner, host="localhost", port=8000)
     await site.start()
+    asyncio.create_task(src.req.ensure_ffmpeg_setup())
     download_starter.start()
     while True:
         await asyncio.sleep(3600)
@@ -184,7 +188,7 @@ def runn():
     try:
         asyncio.run(run())
     except Exception as e:
-        print(f"Server Worker Crash Caught: {e}")
+        logger.exception("Server Worker Crash Caught")
         sys.exit(3)
 
 
@@ -199,8 +203,8 @@ async def watch_loop():
                 ".", target=runn, callback=callback, watch_filter=PyOnlyFilter()
             )
         except (KeyboardInterrupt, SystemExit):
-            print(
-                "\nIntercepted execution restart signal. Spawning a fresh instance...\n"
+            logger.warning(
+                "Intercepted execution restart signal. Spawning a fresh instance..."
             )
             await asyncio.sleep(1.0)
             continue
@@ -210,4 +214,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(watch_loop())
     except KeyboardInterrupt:
-        print("Application stopped entirely.")
+        logger.info("Application stopped entirely.")

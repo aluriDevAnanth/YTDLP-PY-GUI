@@ -6,11 +6,18 @@ import time
 import urllib.request
 from pathlib import Path
 
+from src.logger import get_logger
 from src.schemas import TriStatus
 from src.SioEmitter import SioEmitter, Startup
 
+logger = get_logger("backend.req")
+
 REQ_DIR = Path("req")
 REQ_DIR.mkdir(exist_ok=True)
+
+ffmpeg_setup_task: asyncio.Task | None = None
+ffmpeg_setup_lock = asyncio.Lock()
+ffmpeg_setup_state = {"message": "", "typee": TriStatus.SUCCESS}
 
 OS_CONFIGS = {
     "windows": (
@@ -34,12 +41,12 @@ OS_CONFIGS = {
 def is_ffmpeg_available() -> bool:
     """Checks if FFmpeg is available on the system PATH or locally in req/."""
     if shutil.which("ffmpeg"):
-        print("ℹ️  FFmpeg is already available on the system PATH.")
+        logger.info("FFmpeg is already available on the system PATH.")
         return True
 
     exe_name = "ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg"
     if (REQ_DIR / exe_name).exists():
-        print(f"ℹ️  FFmpeg is already available locally at: {REQ_DIR / exe_name}")
+        logger.info("FFmpeg is already available locally at: %s", REQ_DIR / exe_name)
         return True
     return False
 
@@ -51,6 +58,7 @@ def download_ffmpeg(progress_callback=None):
         raise OSError(f"Unsupported operating system: {os_name}")
 
     url, ext, exe_names = OS_CONFIGS[os_name]
+    REQ_DIR.mkdir(parents=True, exist_ok=True)
     archive_path = REQ_DIR / f"ffmpeg_download{ext}"
     temp_extract_dir = REQ_DIR / "temp_extract"
 
@@ -63,7 +71,7 @@ def download_ffmpeg(progress_callback=None):
             },
         )
 
-        print(f"📥 Connecting to {url}...")
+        logger.info("Connecting to %s...", url)
         with opener.open(req, timeout=45) as response:
             total_size = int(response.headers.get("Content-Length", 0))
             total_mbs = total_size / (1024 * 1024)
@@ -109,8 +117,13 @@ def download_ffmpeg(progress_callback=None):
                             )
                             last_percent = percent
 
-        print("📦 Extracting FFmpeg...")
+        logger.info("Extracting FFmpeg...")
+        if progress_callback:
+            progress_callback(100, 0, 0, 0, "--:--", stage="extracting")
+        temp_extract_dir.mkdir(parents=True, exist_ok=True)
         shutil.unpack_archive(archive_path, temp_extract_dir)
+        if progress_callback:
+            progress_callback(100, 0, 0, 0, "--:--", stage="extracting")
 
         binaries_found = False
         for root, _, files in os.walk(temp_extract_dir):
@@ -122,7 +135,9 @@ def download_ffmpeg(progress_callback=None):
                     shutil.move(os.path.join(root, file), dst)
                     if platform.system() != "Windows":
                         dst.chmod(0o755)
-                    print(f"✅ {file} installed at: {dst}")
+                    logger.info("%s installed at: %s", file, dst)
+                    if progress_callback:
+                        progress_callback(100, 0, 0, 0, "--:--", stage="installing")
                     binaries_found = True
 
         if not binaries_found:
@@ -130,7 +145,7 @@ def download_ffmpeg(progress_callback=None):
                 "FFmpeg binaries were not found inside extracted archive structures."
             )
     except Exception as e:
-        print(f"❌ Error : {str(e)}")
+        logger.exception("FFmpeg download failed")
         raise Exception(str(e))
     finally:
         if archive_path.exists():
@@ -139,47 +154,92 @@ def download_ffmpeg(progress_callback=None):
             shutil.rmtree(temp_extract_dir, ignore_errors=True)
 
 
-async def handle_ffmpeg_download_sequence(sid):
-    """Handles the download sequence safely with real-time tracking metrics and live ETA formatting."""
-    exe_name = "ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg"
-    local_ffmpeg = Path("req") / exe_name
+async def _set_ffmpeg_setup_state(message: str, typee: TriStatus):
+    global ffmpeg_setup_state
+    ffmpeg_setup_state = {"message": message, "typee": typee}
 
-    try:
-        if not is_ffmpeg_available():
-            loop = asyncio.get_running_loop()
 
-            def report_progress(percent, speed_mbs, total_mbs, downloaded_mbs, eta_str):
-                asyncio.run_coroutine_threadsafe(
-                    SioEmitter.startupp(
-                        Startup(
-                            message=f"📥 Downloading FFmpeg... {percent}% | {downloaded_mbs:.1f} MB of {total_mbs:.1f} MB ({speed_mbs:.2f} MB/s) | ETA: {eta_str}",
-                            typee=TriStatus.ONGOING,
-                        )
-                    ),
-                    loop,
-                )
+async def _emit_ffmpeg_setup_state(sid: str | None = None):
+    startup = Startup(
+        message=ffmpeg_setup_state["message"],
+        typee=ffmpeg_setup_state["typee"],
+    )
+    if sid is None:
+        await SioEmitter.startupp(startup)
+    else:
+        await SioEmitter.startupp_to_sid(sid, startup)
 
-            await SioEmitter.startupp(
-                Startup(
-                    message=f"📥 Downloading FFmpeg for {platform.system()}... 0% | 0.0 MB of 0.0 MB (0.00 MB/s) | ETA: --:--",
-                    typee=TriStatus.ONGOING,
-                )
+
+async def ensure_ffmpeg_setup(sid: str | None = None):
+    """Starts FFmpeg setup once at backend startup and replays the latest state to new clients."""
+    global ffmpeg_setup_task
+
+    if ffmpeg_setup_task is not None:
+        if sid is not None:
+            await _emit_ffmpeg_setup_state(sid)
+        return ffmpeg_setup_task
+
+    async with ffmpeg_setup_lock:
+        if ffmpeg_setup_task is not None:
+            if sid is not None:
+                await _emit_ffmpeg_setup_state(sid)
+            return ffmpeg_setup_task
+
+        exe_name = "ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg"
+        local_ffmpeg = Path("req") / exe_name
+
+        if is_ffmpeg_available():
+            await _set_ffmpeg_setup_state(
+                f"ℹ️ FFmpeg is available locally at: {local_ffmpeg}",
+                TriStatus.SUCCESS,
             )
-            await asyncio.sleep(0.2)
+            if sid is not None:
+                await _emit_ffmpeg_setup_state(sid)
+            return None
 
-            await asyncio.to_thread(download_ffmpeg, progress_callback=report_progress)
-
-        await SioEmitter.startupp(
-            Startup(
-                message=f"ℹ️ FFmpeg is available locally at: {local_ffmpeg}",
-                typee=TriStatus.SUCCESS,
-            )
+        await _set_ffmpeg_setup_state(
+            f"📥 Downloading FFmpeg for {platform.system()}... 0% | 0.0 MB of 0.0 MB (0.00 MB/s) | ETA: --:--",
+            TriStatus.ONGOING,
         )
+        if sid is not None:
+            await _emit_ffmpeg_setup_state(sid)
+
+        ffmpeg_setup_task = asyncio.create_task(_run_ffmpeg_setup(local_ffmpeg))
+        return ffmpeg_setup_task
+
+
+async def _run_ffmpeg_setup(local_ffmpeg: Path):
+    try:
+        loop = asyncio.get_running_loop()
+
+        def report_progress(
+            percent, speed_mbs, total_mbs, downloaded_mbs, eta_str, stage="downloading"
+        ):
+            async def _publish_progress():
+                if stage == "extracting":
+                    message = "📦 Extracting FFmpeg archive..."
+                elif stage == "installing":
+                    message = "📁 Installing FFmpeg binaries..."
+                else:
+                    message = f"📥 Downloading FFmpeg... {percent}% | {downloaded_mbs:.1f} MB of {total_mbs:.1f} MB ({speed_mbs:.2f} MB/s) | ETA: {eta_str}"
+
+                await _set_ffmpeg_setup_state(message, TriStatus.ONGOING)
+                await _emit_ffmpeg_setup_state()
+
+            asyncio.run_coroutine_threadsafe(_publish_progress(), loop)
+
+        await asyncio.sleep(0.2)
+        await asyncio.to_thread(download_ffmpeg, progress_callback=report_progress)
+
+        await _set_ffmpeg_setup_state(
+            f"ℹ️ FFmpeg is available locally at: {local_ffmpeg}",
+            TriStatus.SUCCESS,
+        )
+        await _emit_ffmpeg_setup_state()
 
     except Exception as e:
-        await SioEmitter.startupp(
-            Startup(
-                message=f"❌ Error setting up FFmpeg: {str(e)}",
-                typee=TriStatus.ERROR,
-            )
+        await _set_ffmpeg_setup_state(
+            f"❌ Error setting up FFmpeg: {str(e)}",
+            TriStatus.ERROR,
         )
+        await _emit_ffmpeg_setup_state()

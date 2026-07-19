@@ -10,11 +10,14 @@ import ffmpeg
 from PIL import Image
 from sqlmodel import select, update
 from src.db import FileDB, VideoDB, get_session
+from src.logger import get_logger
 from src.req import REQ_DIR
 from src.schemas import DownloadStatus, ThumbnailVTTConfig, Video, VideoProgress
 from src.SioEmitter import SioEmitter
 from yt_dlp import YoutubeDL
 from yt_dlp.utils import DownloadError
+
+logger = get_logger("backend.ytdlp")
 
 ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
@@ -115,9 +118,9 @@ class Ytdlp:
                 )
         except Exception as e:
             try:
-                print("❌ [Ytdlp__download_video] Error: ", e)
+                logger.exception("Ytdlp download failed")
                 with get_session() as session:
-                    print(self.video.id)
+                    logger.debug("Removing video %s", self.video.id)
                     video = session.get(VideoDB, self.video.id)
                     if video:
                         session.delete(video)
@@ -125,13 +128,15 @@ class Ytdlp:
                     instance = Ytdlp.get_instance(self.video.id)
                     if instance:
                         instance.cancel()
-                        print(
-                            f"ℹ️ [Ytdlp__download_video__finally] Error: Removing video with id {self.video.id} and url {self.video.url} because of above error"
+                        logger.info(
+                            "Removing video with id %s and url %s because of a download failure",
+                            self.video.id,
+                            self.video.url,
                         )
                         Ytdlp.remove_instance(self.video.id)
                         await SioEmitter.remove_video(self.video.id)
             except Exception as e:
-                print("❌ [Ytdlp__download_video__except] Error: ", e)
+                logger.exception("Failed while cleaning up a failed download")
 
     def _progress_wrapper(self, d):
         if self.canceled:
@@ -141,9 +146,9 @@ class Ytdlp:
                     path = Path(file_path + ".part")
                     if path.exists():
                         path.unlink()
-                        print(f"[Ytdlp] Canceled and deleted video file: {file_path}")
+                        logger.info("Canceled and deleted video file: %s", file_path)
                 except Exception as e:
-                    print(f"[Ytdlp] Failed to delete video file {file_path}: {e}")
+                    logger.exception("Failed to delete video file %s", file_path)
 
             try:
                 thumb_path = d["info_dict"]["thumbnails"][-1].get("filepath")
@@ -151,16 +156,16 @@ class Ytdlp:
                     thumb = Path(thumb_path)
                     if thumb.exists():
                         thumb.unlink()
-                        print(f"[Ytdlp] Canceled and deleted thumbnail: {thumb_path}")
+                        logger.info("Canceled and deleted thumbnail: %s", thumb_path)
             except Exception as e:
-                print(f"[Ytdlp] Failed to delete thumbnail: {e}")
+                logger.exception("Failed to delete thumbnail %s", thumb_path)
 
             raise DownloadError("[Ytdlp] Canceled by user.")
 
         try:
             asyncio.run_coroutine_threadsafe(self.ytdlp_progress_hook(d), self.loop)
         except Exception as e:
-            print("[ERROR in hook emit]", e)
+            logger.exception("Error in progress hook emit")
 
     async def ytdlp_progress_hook(self, d):
         try:
@@ -254,14 +259,14 @@ class Ytdlp:
                 await SioEmitter.message(self.video.model_dump())
 
         except Exception as e:
-            print("[ytdlp_progress_hook]", e)
+            logger.exception("YTDLP progress hook failed")
 
     async def thumbgen(self, d: dict):
         thumbs_dir = None
         try:
             filepath = d.get("filename")
             if not filepath or not Path(filepath).exists():
-                print("[thumbgen] No valid filepath in hook data.")
+                logger.warning("No valid filepath in hook data.")
                 return
 
             filepath = Path(filepath)
@@ -285,12 +290,12 @@ class Ytdlp:
                     .run(cmd=str(ffmpeg_path))
                 )
             except ffmpeg.Error as e:
-                print("[thumbgen] FFmpeg thumbnail generation failed:", e)
+                logger.exception("FFmpeg thumbnail generation failed")
                 return
 
             thumbs = sorted(thumbs_dir.glob("thumb*.jpg"))
             if not thumbs:
-                print("[thumbgen] No thumbnails found.")
+                logger.warning("No thumbnails found.")
                 return
 
             with Image.open(thumbs[0]) as first_thumb:
@@ -310,7 +315,7 @@ class Ytdlp:
                     sprite.paste(img, (x, y))
 
             sprite.save(sprite_path)
-            print(f"[thumbgen] ✅ Sprite saved: {sprite_path}")
+            logger.info("Sprite saved: %s", sprite_path)
 
             self.video.vttSpritePathId = self.setFileGetID(sprite_path.as_posix())
 
@@ -335,12 +340,12 @@ class Ytdlp:
 
             vtt_path = VTT_DIR / f"{video_name}_thumbs.vtt"
             vtt_path.write_text("\n".join(vtt_lines), encoding="utf-8")
-            print(f"[thumbgen] ✅ VTT saved: {vtt_path}")
+            logger.info("VTT saved: %s", vtt_path)
 
             return vtt_path
 
         except Exception as e:
-            print(f"[thumbgen] ❌ Exception: {e}")
+            logger.exception("Thumb generation failed")
             import traceback
 
             traceback.print_exc()
@@ -349,9 +354,9 @@ class Ytdlp:
             if thumbs_dir and thumbs_dir.exists():
                 try:
                     shutil.rmtree(thumbs_dir)
-                    print(f"[thumbgen] 🧹 Cleaned up: {thumbs_dir}")
+                    logger.info("Cleaned up: %s", thumbs_dir)
                 except Exception as e:
-                    print(f"[thumbgen] ⚠️ Failed to cleanup {thumbs_dir}: {e}")
+                    logger.exception("Failed to cleanup %s", thumbs_dir)
 
     def setFileGetID(self, file_path: str) -> str:
         try:
@@ -370,5 +375,5 @@ class Ytdlp:
                 return str(new_file.id)
 
         except Exception as e:
-            print("[Ytdlp.setFileGetID]", e)
+            logger.exception("Ytdlp.setFileGetID failed")
             return ""
